@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package shibafu528.dtvault;
+
+import "program.proto";
+
+message Video {
+    string video_id = 1; // UUID
+    string provider_id = 2;
+    ProgramIdentity program_id = 3;
+    uint64 total_length = 4;
+    string file_name = 5;
+    string mime_type = 6;
+}

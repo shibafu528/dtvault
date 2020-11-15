@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package shibafu528.dtvault;
+
+// Mirakurun compatible channel object
+message Channel {
+    ChannelType channel_type = 1;
+    string channel = 2;
+    string name = 3;
+}
+
+enum ChannelType {
+    CHANNEL_UNKNOWN = 0;
+    GR = 1;
+    BS = 2;
+    CS = 3;
+    SKY = 4;
+}

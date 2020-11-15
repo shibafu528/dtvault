@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "dtvault-types",
+    "dtvault-central",
+    "dtvault-collector-chinachu",
+]

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package shibafu528.dtvault.central;
+
+import "program.proto";
+
+service ProgramService {
+    rpc CreateProgram (CreateProgramRequest) returns (CreateProgramResponse);
+    rpc UpdateProgramMetadata (UpdateProgramMetadataRequest) returns (UpdateProgramMetadataResponse);
+}
+
+message CreateProgramRequest {
+    Program program = 1;
+}
+
+message CreateProgramResponse {
+    enum Status {
+        CREATED = 0;
+        ALREADY_EXISTS = 1;
+    }
+    Status status = 1;
+    Program program = 2;
+}
+
+message UpdateProgramMetadataRequest {
+    ProgramIdentity program_id = 1;
+    string key = 2;
+    string value = 3;
+}
+
+message UpdateProgramMetadataResponse {
+}

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package shibafu528.dtvault.storage;
+
+import "program.proto";
+import "video.proto";
+
+service VideoStorageService {
+    rpc CreateVideo (stream CreateVideoRequest) returns (CreateVideoResponse);
+}
+
+message CreateVideoRequest {
+    message Header {
+        string provider_id = 1; // 同一の映像を重複して保存させないために使う識別子。 ex. "dtvault-collector-chinachu"
+        ProgramIdentity program_id = 2;
+        uint64 total_length = 3;
+        string file_name = 4;
+        string mime_type = 5;
+    }
+    message Datagram {
+        uint64 offset = 1;
+        bytes payload = 2;
+    }
+    oneof part {
+        Header header = 1;
+        Datagram datagram = 2;
+    }
+}
+
+message CreateVideoResponse {
+    Video video = 1;
+}

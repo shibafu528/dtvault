@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package shibafu528.dtvault;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "channel.proto";
+
+message Service {
+    uint32 network_id = 1;
+    uint32 service_id = 2;
+    string name = 3;
+    Channel channel = 4;
+}
+
+message Program {
+    uint32 network_id = 1;
+    uint32 service_id = 2;
+    uint32 event_id = 3;
+    google.protobuf.Timestamp start_at = 4;
+    google.protobuf.Duration duration = 5;
+    string name = 6; // event_name
+    string description = 7; // text
+    repeated ExtendedEvent extended = 8;
+    Service service = 9;
+}
+
+message ExtendedEvent {
+    string key = 1;
+    string value = 2;
+}
+
+message ProgramIdentity {
+    uint32 network_id = 1;
+    uint32 service_id = 2;
+    uint32 event_id = 3;
+    google.protobuf.Timestamp start_at = 4;
+}
