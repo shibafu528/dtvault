@@ -31,6 +31,8 @@ pub enum MessageConversionError {
     ParseProgramIDError(#[from] ParseProgramIDError),
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
+    #[error("Unexpected type of `{}`: {}", .name, .value)]
+    UnexpectedType { name: String, value: String },
 }
 
 impl RecordedProgram {
@@ -52,21 +54,7 @@ impl RecordedProgram {
             duration: Some(Duration::from(std::time::Duration::from_secs(self.seconds))),
             name: self.title.clone(),
             description: self.short_description().clone(),
-            extended: self
-                .extra
-                .as_ref()
-                .map(|map| {
-                    map.iter()
-                        .map(|(key, value)| ExtendedEvent {
-                            key: key.clone(),
-                            value: match value {
-                                Value::String(str) => str.clone(),
-                                _ => panic!("Unexpected type: {}", value),
-                            },
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
+            extended: self.extra_to_extented_event()?,
             service: Some(self.channel.to_message()?),
         })
     }
@@ -75,6 +63,27 @@ impl RecordedProgram {
         let option = self.description.as_ref();
         let detail = &self.detail;
         option.unwrap_or(detail)
+    }
+
+    fn extra_to_extented_event(&self) -> Result<Vec<ExtendedEvent>, MessageConversionError> {
+        match self.extra.as_ref() {
+            Some(extra) => {
+                let mut vec = Vec::with_capacity(extra.len());
+                for (k, v) in extra {
+                    let key = k.clone();
+                    let value = match v {
+                        Value::String(str) => Ok(str.clone()),
+                        _ => Err(MessageConversionError::UnexpectedType {
+                            name: format!("extra.{}", key),
+                            value: v.to_string(),
+                        }),
+                    }?;
+                    vec.push(ExtendedEvent { key, value })
+                }
+                Ok(vec)
+            }
+            None => Ok(vec![]),
+        }
     }
 }
 
@@ -91,13 +100,18 @@ pub struct Channel {
 }
 
 impl Channel {
-    fn to_message(&self) -> Result<Service, std::num::ParseIntError> {
+    fn to_message(&self) -> Result<Service, MessageConversionError> {
         Ok(Service {
             network_id: self.nid.unwrap_or(0).into(),
             service_id: match &self.sid {
                 Value::Number(num) => num.as_u64().unwrap() as u32,
                 Value::String(str) => str.parse()?,
-                _ => panic!("Unexpected type: {}", self.sid),
+                _ => {
+                    return Err(MessageConversionError::UnexpectedType {
+                        name: "service_id".to_string(),
+                        value: self.sid.to_string(),
+                    })
+                }
             },
             name: self.name.clone(),
             channel: Some(ChannelPb {

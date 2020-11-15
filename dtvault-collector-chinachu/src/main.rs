@@ -18,10 +18,7 @@ struct Config {
 }
 
 fn send(config: &Config, json: &str) -> serde_json::Result<()> {
-    let record = RecordWithRaw {
-        record: serde_json::from_str(json)?,
-        raw: json.to_string().into(),
-    };
+    let record = RecordWithRaw::from_str(json)?;
 
     let req = record.create_program_request().unwrap();
     println!("{:#?}", req);
@@ -35,18 +32,10 @@ fn import(config: &Config, filename: &str) -> serde_json::Result<()> {
     );
     let recorded: Vec<Box<RawValue>> = serde_json::from_reader(reader)?;
 
-    let mut parsed: Vec<RecordWithRaw> = recorded
-        .into_iter()
-        .filter_map(
-            |raw| match serde_json::from_str::<RecordedProgram>(raw.get()) {
-                Ok(record) => Some(RecordWithRaw {
-                    record,
-                    raw: raw.into(),
-                }),
-                _ => None,
-            },
-        )
-        .collect();
+    let mut parsed: Vec<RecordWithRaw> = Vec::with_capacity(recorded.len());
+    for raw_record in recorded {
+        parsed.push(RecordWithRaw::from_str(raw_record.get())?);
+    }
     parsed.sort_by(|rec1, rec2| rec1.record.id.cmp(&rec2.record.id));
     parsed.sort_by_key(|rec| rec.record.start);
 

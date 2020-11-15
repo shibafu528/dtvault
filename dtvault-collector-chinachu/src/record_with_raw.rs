@@ -42,6 +42,13 @@ pub struct RecordWithRaw {
 }
 
 impl RecordWithRaw {
+    pub fn from_str(json: &str) -> Result<RecordWithRaw, serde_json::Error> {
+        Ok(RecordWithRaw {
+            record: serde_json::from_str(json)?,
+            raw: json.to_string().into(),
+        })
+    }
+
     pub fn dbg(&self) {
         println!("{:?}", self.record);
         println!(
