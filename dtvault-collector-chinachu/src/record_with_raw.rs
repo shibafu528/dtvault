@@ -1,6 +1,6 @@
 use crate::program_id::ParseProgramIDError;
 use crate::recorded_program::{MessageConversionError, RecordedProgram};
-use dtvault_types::shibafu528::dtvault::central::CreateProgramRequest;
+use dtvault_types::shibafu528::dtvault::central::{CreateProgramRequest, UpdateProgramMetadataRequest};
 use dtvault_types::shibafu528::dtvault::Program;
 use serde_json::value::RawValue;
 use std::convert::TryInto;
@@ -49,27 +49,17 @@ impl RecordWithRaw {
         })
     }
 
-    pub fn dbg(&self) {
-        println!("{:?}", self.record);
-        println!(
-            "{} -> {}",
-            self.record.id,
-            self.record
-                .program_id()
-                .map(|id| format!("{:?}", id))
-                .unwrap() //.unwrap_or_else(|e| format!("Parse error! {:?}", e))
-        );
-        println!(
-            "raw {} bytes: {} ...",
-            self.raw.len(),
-            self.raw[..32].to_string()
-        );
-    }
-
     pub fn create_program_request(&self) -> Result<CreateProgramRequest, MessageConversionError> {
         let program = self.record.to_message()?;
-        Ok(CreateProgramRequest {
-            program: Some(program),
+        Ok(CreateProgramRequest { program: Some(program) })
+    }
+
+    pub fn update_program_metadata_request(&self) -> Result<UpdateProgramMetadataRequest, MessageConversionError> {
+        let id = self.record.to_identity()?;
+        Ok(UpdateProgramMetadataRequest {
+            program_id: Some(id),
+            key: "chinachu_program_data".to_string(),
+            value: self.raw.to_string(),
         })
     }
 }

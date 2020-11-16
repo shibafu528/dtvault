@@ -17,19 +17,28 @@ struct Config {
     central_addr: String,
 }
 
-fn send(config: &Config, json: &str) -> serde_json::Result<()> {
-    let record = RecordWithRaw::from_str(json)?;
-
+fn send_to_central(config: &Config, record: &RecordWithRaw) {
+    // Step 1. Send parsed program data
     let req = record.create_program_request().unwrap();
     println!("{:#?}", req);
+
+    // Step 2. Send raw program data
+    let metareq = record.update_program_metadata_request().unwrap();
+    println!("{:#?}", metareq);
+
+    // Step 3. Send M2TS video
+}
+
+fn exec_send(config: &Config, json: &str) -> serde_json::Result<()> {
+    let record = RecordWithRaw::from_str(json)?;
+
+    send_to_central(config, &record);
 
     Ok(())
 }
 
-fn import(config: &Config, filename: &str) -> serde_json::Result<()> {
-    let reader = BufReader::new(
-        File::open(filename).unwrap_or_else(|_| panic!("failed to open: {}", filename)),
-    );
+fn exec_import(config: &Config, filename: &str) -> serde_json::Result<()> {
+    let reader = BufReader::new(File::open(filename).unwrap_or_else(|_| panic!("failed to open: {}", filename)));
     let recorded: Vec<Box<RawValue>> = serde_json::from_reader(reader)?;
 
     let mut parsed: Vec<RecordWithRaw> = Vec::with_capacity(recorded.len());
@@ -40,21 +49,17 @@ fn import(config: &Config, filename: &str) -> serde_json::Result<()> {
     parsed.sort_by_key(|rec| rec.record.start);
 
     for rec in parsed {
-        rec.dbg();
+        send_to_central(config, &rec);
     }
 
     Ok(())
 }
 
 fn main() {
-    let config: Config = envy::prefixed("DTVAULT_")
-        .from_env()
-        .unwrap_or_else(|err| match err {
-            Error::MissingValue(key) => {
-                panic!("Missing environment variable `{}`", key.to_uppercase())
-            }
-            Error::Custom(s) => panic!("{}", s),
-        });
+    let config: Config = envy::prefixed("DTVAULT_").from_env().unwrap_or_else(|err| match err {
+        Error::MissingValue(key) => panic!("Missing environment variable `{}`", key.to_uppercase()),
+        Error::Custom(s) => panic!("{}", s),
+    });
 
     let m = App::new("dtvault-collector-chinachu")
         .about("Send recorded MPEG2-TS file and program description to dtvault-central")
@@ -81,8 +86,8 @@ fn main() {
         .get_matches();
 
     if let Some(file) = m.value_of("import") {
-        import(&config, file).unwrap();
+        exec_import(&config, file).unwrap();
     } else {
-        send(&config, m.value_of("JSON").unwrap()).unwrap();
+        exec_send(&config, m.value_of("JSON").unwrap()).unwrap();
     }
 }

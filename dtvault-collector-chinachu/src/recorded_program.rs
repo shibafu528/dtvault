@@ -1,6 +1,6 @@
 use crate::program_id::{ParseProgramIDError, ProgramID};
 use dtvault_types::shibafu528::dtvault::{
-    Channel as ChannelPb, ChannelType, ExtendedEvent, Program, Service,
+    Channel as ChannelPb, ChannelType, ExtendedEvent, Program, ProgramIdentity, Service,
 };
 use prost_types::{Duration, Timestamp};
 use serde::{Deserialize, Serialize};
@@ -41,9 +41,24 @@ impl RecordedProgram {
     }
 
     pub fn to_message(&self) -> Result<Program, MessageConversionError> {
+        let identity = self.to_identity()?;
+        Ok(Program {
+            network_id: identity.network_id,
+            service_id: identity.service_id,
+            event_id: identity.event_id,
+            start_at: identity.start_at,
+            duration: Some(Duration::from(std::time::Duration::from_secs(self.seconds))),
+            name: self.title.clone(),
+            description: self.short_description().clone(),
+            extended: self.extra_to_extented_event()?,
+            service: Some(self.channel.to_message()?),
+        })
+    }
+
+    pub fn to_identity(&self) -> Result<ProgramIdentity, MessageConversionError> {
         let program_id = self.program_id()?;
         let start_at = Duration::from(std::time::Duration::from_millis(self.start));
-        Ok(Program {
+        Ok(ProgramIdentity {
             network_id: program_id.nid.into(),
             service_id: program_id.sid.into(),
             event_id: program_id.eid.into(),
@@ -51,11 +66,6 @@ impl RecordedProgram {
                 seconds: start_at.seconds,
                 nanos: start_at.nanos,
             }),
-            duration: Some(Duration::from(std::time::Duration::from_secs(self.seconds))),
-            name: self.title.clone(),
-            description: self.short_description().clone(),
-            extended: self.extra_to_extented_event()?,
-            service: Some(self.channel.to_message()?),
         })
     }
 
