@@ -2,17 +2,30 @@ syntax = "proto3";
 
 package shibafu528.dtvault;
 
-// Mirakurun compatible channel object
+// 物理チャンネルに関する情報 (Mirakurun互換フォーマット)
 message Channel {
+    // 放送種別
     ChannelType channel_type = 1;
+    // 物理チャンネル (GR: {"16", "21", ...}, BS: {"BS01_0", "BS01_1", ...})
     string channel = 2;
+    // 名前 (管理用の名称?)
     string name = 3;
 }
 
+// 放送種別
 enum ChannelType {
     CHANNEL_UNKNOWN = 0;
     GR = 1;
     BS = 2;
     CS = 3;
     SKY = 4;
+}
+
+// 論理チャンネルに関する情報
+message Service {
+    uint32 network_id = 1;
+    uint32 service_id = 2;
+    string name = 3;
+    // 受信に用いた物理チャンネル
+    Channel channel = 4;
 }

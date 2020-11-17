@@ -117,6 +117,7 @@ name = "dtvault-central"
 version = "0.1.0"
 dependencies = [
  "dtvault-types",
+ "once_cell",
  "prost",
  "prost-types",
  "tokio",

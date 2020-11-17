@@ -6,13 +6,6 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "channel.proto";
 
-message Service {
-    uint32 network_id = 1;
-    uint32 service_id = 2;
-    string name = 3;
-    Channel channel = 4;
-}
-
 message Program {
     uint32 network_id = 1;
     uint32 service_id = 2;
