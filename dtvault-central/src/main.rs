@@ -5,10 +5,12 @@ use dtvault_types::shibafu528::dtvault::central::program_service_server::{
     ProgramService as ProgramServiceTrait, ProgramServiceServer,
 };
 use dtvault_types::shibafu528::dtvault::central::{
-    CreateProgramRequest, CreateProgramResponse, UpdateProgramMetadataRequest, UpdateProgramMetadataResponse,
+    CreateProgramRequest, CreateProgramResponse, GetProgramMetadataRequest, GetProgramMetadataResponse,
+    UpdateProgramMetadataRequest, UpdateProgramMetadataResponse,
 };
 use dtvault_types::shibafu528::dtvault::{Channel, Program, ProgramIdentity, Service};
 use once_cell::sync::Lazy;
+use prost_types::Timestamp;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -50,8 +52,30 @@ fn validate_program_id(value: &ProgramIdentity) -> Result<&ProgramIdentity, Stri
     Ok(value)
 }
 
+struct StoredProgram {
+    program: Program,
+    metadata: HashMap<String, String>,
+}
+
+impl StoredProgram {
+    pub fn new(program: Program) -> Self {
+        StoredProgram {
+            program,
+            metadata: HashMap::new(),
+        }
+    }
+}
+
 // TODO: ちゃんと保存する
-static PROGRAM_STORE: Lazy<Mutex<HashMap<String, Program>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static PROGRAM_STORE: Lazy<Mutex<HashMap<String, StoredProgram>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+fn program_store_key(id: &ProgramIdentity) -> String {
+    let start_at = id.start_at.as_ref().unwrap_or(&Timestamp { seconds: 0, nanos: 0 });
+    format!(
+        "{}_{}_{}_{}_{}",
+        id.network_id, id.service_id, id.event_id, start_at.seconds, start_at.nanos
+    )
+}
 
 #[derive(Debug, Default)]
 struct ProgramService;
@@ -95,9 +119,9 @@ impl ProgramServiceTrait for ProgramService {
                     program.network_id, program.service_id, program.event_id, start_at.seconds, start_at.nanos
                 );
                 if let Some(prog) = store.get(&id) {
-                    Ok((ResponseStatus::AlreadyExists, prog.clone()))
+                    Ok((ResponseStatus::AlreadyExists, prog.program.clone()))
                 } else {
-                    store.insert(id, program.clone());
+                    store.insert(id, StoredProgram::new(program.clone()));
                     Ok((ResponseStatus::Created, program))
                 }
             }
@@ -109,6 +133,56 @@ impl ProgramServiceTrait for ProgramService {
             program: Some(ret_program),
         };
         Ok(Response::new(res))
+    }
+
+    async fn get_program_metadata(
+        &self,
+        request: Request<GetProgramMetadataRequest>,
+    ) -> Result<Response<GetProgramMetadataResponse>, Status> {
+        let msg = request.into_inner();
+
+        let program_id = match msg.program_id {
+            Some(program_id) => match validate_program_id(&program_id) {
+                Ok(_) => Ok(program_id),
+                Err(msg) => Err(Status::failed_precondition(format!(
+                    "Violation in program_id => {}",
+                    msg
+                ))),
+            },
+            None => Err(Status::failed_precondition("Missing value: program_id")),
+        }?;
+        if msg.key.is_empty() {
+            return Err(Status::failed_precondition("Invalid value: key"));
+        }
+        if msg.key.len() > 255 {
+            return Err(Status::failed_precondition("String too long: key"));
+        }
+
+        let id = program_store_key(&program_id);
+
+        match PROGRAM_STORE.lock() {
+            Ok(store) => match store.get(&id) {
+                Some(sp) => {
+                    println!("PID = {:?}, {:?}", program_id, &msg.key);
+
+                    if let Some(value) = sp.metadata.get(&msg.key) {
+                        Ok(Response::new(GetProgramMetadataResponse {
+                            program_id: Some(program_id),
+                            key: msg.key,
+                            value: value.to_string(),
+                        }))
+                    } else {
+                        Ok(Response::new(GetProgramMetadataResponse {
+                            program_id: Some(program_id),
+                            key: msg.key,
+                            value: "".to_string(),
+                        }))
+                    }
+                }
+                None => Err(Status::not_found(format!("Program not found (id = {})", id))),
+            },
+            Err(e) => Err(Status::aborted(format!("{}", e))),
+        }
     }
 
     async fn update_program_metadata(
@@ -133,13 +207,23 @@ impl ProgramServiceTrait for ProgramService {
         if msg.key.len() > 255 {
             return Err(Status::failed_precondition("String too long: key"));
         }
-        if msg.value.len() > 4 * 1024 * 1024 {
+        if msg.value.len() > 1 * 1024 * 1024 {
             return Err(Status::failed_precondition("String too long: value"));
         }
 
-        println!("PID = {:?}, {:?} => {:?}", program_id, msg.key, msg.value);
+        let id = program_store_key(&program_id);
 
-        Ok(Response::new(UpdateProgramMetadataResponse {}))
+        match PROGRAM_STORE.lock() {
+            Ok(mut store) => match store.get_mut(&id) {
+                Some(sp) => {
+                    println!("PID = {:?}, {:?} => {:?}", program_id, &msg.key, &msg.value);
+                    sp.metadata.insert(msg.key, msg.value);
+                    Ok(Response::new(UpdateProgramMetadataResponse {}))
+                }
+                None => Err(Status::not_found(format!("Program not found (id = {})", id))),
+            },
+            Err(e) => Err(Status::aborted(format!("{}", e))),
+        }
     }
 }
 

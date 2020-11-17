@@ -6,6 +6,7 @@ import "program.proto";
 
 service ProgramService {
     rpc CreateProgram (CreateProgramRequest) returns (CreateProgramResponse);
+    rpc GetProgramMetadata (GetProgramMetadataRequest) returns (GetProgramMetadataResponse);
     rpc UpdateProgramMetadata (UpdateProgramMetadataRequest) returns (UpdateProgramMetadataResponse);
 }
 
@@ -20,6 +21,17 @@ message CreateProgramResponse {
     }
     Status status = 1;
     Program program = 2;
+}
+
+message GetProgramMetadataRequest {
+    ProgramIdentity program_id = 1;
+    string key = 2;
+}
+
+message GetProgramMetadataResponse {
+    ProgramIdentity program_id = 1;
+    string key = 2;
+    string value = 3;
 }
 
 message UpdateProgramMetadataRequest {
