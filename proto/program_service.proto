@@ -5,9 +5,18 @@ package shibafu528.dtvault.central;
 import "program.proto";
 
 service ProgramService {
+    rpc GetProgram (GetProgramRequest) returns (GetProgramResponse);
     rpc CreateProgram (CreateProgramRequest) returns (CreateProgramResponse);
     rpc GetProgramMetadata (GetProgramMetadataRequest) returns (GetProgramMetadataResponse);
     rpc UpdateProgramMetadata (UpdateProgramMetadataRequest) returns (UpdateProgramMetadataResponse);
+}
+
+message GetProgramRequest {
+    ProgramIdentity program_id = 1;
+}
+
+message GetProgramResponse {
+    Program program = 1;
 }
 
 message CreateProgramRequest {

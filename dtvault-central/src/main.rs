@@ -6,7 +6,7 @@ use dtvault_types::shibafu528::dtvault::central::program_service_server::{
 };
 use dtvault_types::shibafu528::dtvault::central::{
     CreateProgramRequest, CreateProgramResponse, GetProgramMetadataRequest, GetProgramMetadataResponse,
-    UpdateProgramMetadataRequest, UpdateProgramMetadataResponse,
+    GetProgramRequest, GetProgramResponse, UpdateProgramMetadataRequest, UpdateProgramMetadataResponse,
 };
 use dtvault_types::shibafu528::dtvault::{Channel, Program, ProgramIdentity, Service};
 use once_cell::sync::Lazy;
@@ -82,6 +82,33 @@ struct ProgramService;
 
 #[tonic::async_trait]
 impl ProgramServiceTrait for ProgramService {
+    async fn get_program(&self, request: Request<GetProgramRequest>) -> Result<Response<GetProgramResponse>, Status> {
+        let msg = request.into_inner();
+
+        let program_id = match msg.program_id {
+            Some(program_id) => match validate_program_id(&program_id) {
+                Ok(_) => Ok(program_id),
+                Err(msg) => Err(Status::failed_precondition(format!(
+                    "Violation in program_id => {}",
+                    msg
+                ))),
+            },
+            None => Err(Status::failed_precondition("Missing value: program_id")),
+        }?;
+
+        let id = program_store_key(&program_id);
+
+        match PROGRAM_STORE.lock() {
+            Ok(store) => match store.get(&id) {
+                Some(sp) => Ok(Response::new(GetProgramResponse {
+                    program: Some(sp.program.clone()),
+                })),
+                None => Err(Status::not_found(format!("Program not found (id = {})", id))),
+            },
+            Err(e) => Err(Status::aborted(format!("{}", e))),
+        }
+    }
+
     async fn create_program(
         &self,
         request: Request<CreateProgramRequest>,
