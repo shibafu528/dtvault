@@ -1,6 +1,7 @@
 use crate::record_with_raw::RecordWithRaw;
 use crate::recorded_program::RecordedProgram;
 use clap::{App, AppSettings, Arg, ArgGroup, SubCommand};
+use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as CreateProgramStatus;
 use dtvault_types::shibafu528::dtvault::central::program_service_client::ProgramServiceClient;
 use envy::Error;
 use once_cell::sync::Lazy;
@@ -21,22 +22,59 @@ struct Config {
     debug: bool,
 }
 
-async fn send_to_central(config: &Config, record: &RecordWithRaw) -> Result<(), Box<dyn std::error::Error>> {
-    let mut program_client = ProgramServiceClient::connect(config.central_addr.parse::<Uri>()?).await?;
+struct Connection {
+    program_client: ProgramServiceClient<tonic::transport::Channel>,
+}
+
+#[derive(thiserror::Error, Debug)]
+enum ConnectionError {
+    #[error("Invalid URI: {0}")]
+    InvalidUri(String),
+    #[error(transparent)]
+    TonicError(#[from] tonic::transport::Error),
+}
+
+impl Connection {
+    async fn new(config: &Config) -> Result<Self, ConnectionError> {
+        let central_url = config
+            .central_addr
+            .parse::<Uri>()
+            .map_err(|_| ConnectionError::InvalidUri(config.central_addr.to_string()))?;
+
+        let program_client = ProgramServiceClient::connect(central_url).await?;
+
+        Ok(Connection { program_client })
+    }
+}
+
+async fn send_to_central(
+    config: &Config,
+    connection: &mut Connection,
+    record: &RecordWithRaw,
+) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Program: {}", record.record.full_title);
 
     // Step 1. Send parsed program data
     let create_req = record.create_program_request().unwrap();
     if config.debug {
         println!("{:#?}", create_req);
     }
-    let _create_res = program_client.create_program(create_req).await?;
+    print!("--> Send program... ");
+    let create_res = connection.program_client.create_program(create_req).await?;
+    if create_res.get_ref().status == CreateProgramStatus::AlreadyExists as i32 {
+        println!("Already exists.");
+    } else {
+        println!("Done.");
+    }
 
     // Step 2. Send raw program data
     let meta_req = record.update_program_metadata_request().unwrap();
     if config.debug {
         println!("{:#?}", meta_req);
     }
-    let _meta_res = program_client.update_program_metadata(meta_req).await?;
+    print!("--> Send raw program... ");
+    let _meta_res = connection.program_client.update_program_metadata(meta_req).await?;
+    println!("Done.");
 
     // Step 3. Send M2TS video
     // TODO
@@ -46,8 +84,9 @@ async fn send_to_central(config: &Config, record: &RecordWithRaw) -> Result<(), 
 
 async fn exec_send(config: &Config, json: &str) -> Result<(), Box<dyn std::error::Error>> {
     let record = RecordWithRaw::from_str(json)?;
+    let mut connection = Connection::new(config).await?;
 
-    send_to_central(config, &record).await?;
+    send_to_central(config, &mut connection, &record).await?;
 
     Ok(())
 }
@@ -63,8 +102,9 @@ async fn exec_import(config: &Config, filename: &str) -> Result<(), Box<dyn std:
     parsed.sort_by(|rec1, rec2| rec1.record.id.cmp(&rec2.record.id));
     parsed.sort_by_key(|rec| rec.record.start);
 
+    let mut connection = Connection::new(config).await?;
     for rec in parsed {
-        match send_to_central(config, &rec).await {
+        match send_to_central(config, &mut connection, &rec).await {
             Ok(_) => println!("[  OK  ] {}", rec.record.full_title),
             Err(e) => println!("[FAILED] {}\n{}", rec.record.full_title, e),
         }
