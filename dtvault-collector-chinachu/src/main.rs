@@ -131,6 +131,7 @@ async fn send_to_central(
         rx
     };
     let _video_res = connection.video_storage_client.create_video(stream).await?;
+    println!("    Done.");
 
     Ok(())
 }
