@@ -5,5 +5,9 @@ pub mod shibafu528 {
         pub mod central {
             tonic::include_proto!("shibafu528.dtvault.central");
         }
+
+        pub mod storage {
+            tonic::include_proto!("shibafu528.dtvault.storage");
+        }
     }
 }

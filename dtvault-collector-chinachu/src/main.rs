@@ -1,14 +1,16 @@
 use crate::record_with_raw::RecordWithRaw;
-use crate::recorded_program::RecordedProgram;
-use clap::{App, AppSettings, Arg, ArgGroup, SubCommand};
+use clap::{App, Arg};
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as CreateProgramStatus;
 use dtvault_types::shibafu528::dtvault::central::program_service_client::ProgramServiceClient;
+use dtvault_types::shibafu528::dtvault::storage::create_video_request::{Datagram as VideoDatagram, Part as VideoPart};
+use dtvault_types::shibafu528::dtvault::storage::video_storage_service_client::VideoStorageServiceClient;
+use dtvault_types::shibafu528::dtvault::storage::CreateVideoRequest;
 use envy::Error;
-use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::value::RawValue;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
+use tokio::sync::mpsc;
 use tonic::transport::Uri;
 
 mod program_id;
@@ -24,6 +26,7 @@ struct Config {
 
 struct Connection {
     program_client: ProgramServiceClient<tonic::transport::Channel>,
+    video_storage_client: VideoStorageServiceClient<tonic::transport::Channel>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -41,9 +44,13 @@ impl Connection {
             .parse::<Uri>()
             .map_err(|_| ConnectionError::InvalidUri(config.central_addr.to_string()))?;
 
-        let program_client = ProgramServiceClient::connect(central_url).await?;
+        let program_client = ProgramServiceClient::connect(central_url.clone()).await?;
+        let video_storage_client = VideoStorageServiceClient::connect(central_url.clone()).await?;
 
-        Ok(Connection { program_client })
+        Ok(Connection {
+            program_client,
+            video_storage_client,
+        })
     }
 }
 
@@ -77,7 +84,52 @@ async fn send_to_central(
     println!("Done.");
 
     // Step 3. Send M2TS video
-    // TODO
+    println!("--> Send video...: {}", record.record.recorded);
+    let stream = {
+        let mut reader = BufReader::new(File::open(record.record.recorded.to_string())?);
+        let header = record.video_header()?;
+        let (mut tx, rx) = mpsc::channel(1);
+        tokio::spawn(async move {
+            let header_req = CreateVideoRequest {
+                part: Some(VideoPart::Header(header)),
+            };
+            if let Err(e) = tx.send(header_req).await {
+                eprintln!("[[Error in task!]] {}", e);
+                return;
+            }
+
+            let mut buffer = [0; 1024 * 1024];
+            let mut sent: usize = 0;
+            loop {
+                match reader.read(&mut buffer) {
+                    Ok(size) => match size {
+                        0 => break,
+                        n => {
+                            let datagram = VideoDatagram {
+                                offset: sent as u64,
+                                payload: buffer[0..n].to_vec(),
+                            };
+                            let datagram_req = CreateVideoRequest {
+                                part: Some(VideoPart::Datagram(datagram)),
+                            };
+                            if let Err(e) = tx.send(datagram_req).await {
+                                eprintln!("[[Error in task!]] {}", e);
+                                return;
+                            };
+
+                            sent += n;
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("[[Error in task!]] {}", e);
+                        return;
+                    }
+                };
+            }
+        });
+        rx
+    };
+    let _video_res = connection.video_storage_client.create_video(stream).await?;
 
     Ok(())
 }

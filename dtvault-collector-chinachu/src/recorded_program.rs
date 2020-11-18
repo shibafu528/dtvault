@@ -4,11 +4,7 @@ use dtvault_types::shibafu528::dtvault::{
 };
 use prost_types::{Duration, Timestamp};
 use serde::{Deserialize, Serialize};
-use serde_json::value::RawValue;
 use serde_json::{Map, Value};
-use std::collections::BTreeMap;
-use std::convert::{TryFrom, TryInto};
-use std::str::FromStr;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -31,6 +27,8 @@ pub enum MessageConversionError {
     ParseProgramIDError(#[from] ParseProgramIDError),
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
     #[error("Unexpected type of `{}`: {}", .name, .value)]
     UnexpectedType { name: String, value: String },
 }
