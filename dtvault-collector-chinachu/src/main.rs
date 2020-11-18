@@ -98,16 +98,17 @@ async fn send_to_central(
                 return;
             }
 
-            let mut buffer = [0; 1024 * 1024];
             let mut sent: usize = 0;
             loop {
+                let mut buffer = vec![0; 1024 * 1024];
                 match reader.read(&mut buffer) {
                     Ok(size) => match size {
                         0 => break,
                         n => {
+                            buffer.resize(n, 0);
                             let datagram = VideoDatagram {
                                 offset: sent as u64,
-                                payload: buffer[0..n].to_vec(),
+                                payload: buffer,
                             };
                             let datagram_req = CreateVideoRequest {
                                 part: Some(VideoPart::Datagram(datagram)),
