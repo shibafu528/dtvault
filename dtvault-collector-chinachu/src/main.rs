@@ -10,6 +10,7 @@ use serde::Deserialize;
 use serde_json::value::RawValue;
 use std::fs::File;
 use std::io::{BufReader, Read};
+use std::time::Instant;
 use tokio::sync::mpsc;
 use tonic::transport::Uri;
 
@@ -85,6 +86,7 @@ async fn send_to_central(
 
     // Step 3. Send M2TS video
     println!("--> Send video...: {}", record.record.recorded);
+    let stream_begin = Instant::now();
     let stream = {
         let mut reader = BufReader::new(File::open(record.record.recorded.to_string())?);
         let header = record.video_header()?;
@@ -131,7 +133,7 @@ async fn send_to_central(
         rx
     };
     let _video_res = connection.video_storage_client.create_video(stream).await?;
-    println!("    Done.");
+    println!("    Done. ({} secs)", stream_begin.elapsed().as_secs_f32());
 
     Ok(())
 }

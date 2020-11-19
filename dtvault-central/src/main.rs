@@ -8,11 +8,17 @@ use dtvault_types::shibafu528::dtvault::central::{
     CreateProgramRequest, CreateProgramResponse, GetProgramMetadataRequest, GetProgramMetadataResponse,
     GetProgramRequest, GetProgramResponse, UpdateProgramMetadataRequest, UpdateProgramMetadataResponse,
 };
+use dtvault_types::shibafu528::dtvault::storage::create_video_request::{Header as VideoHeader, Part as VideoPart};
+use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::{
+    VideoStorageService as VideoStorageServiceTrait, VideoStorageServiceServer,
+};
+use dtvault_types::shibafu528::dtvault::storage::{CreateVideoRequest, CreateVideoResponse};
 use dtvault_types::shibafu528::dtvault::{Channel, Program, ProgramIdentity, Service};
 use once_cell::sync::Lazy;
 use prost_types::Timestamp;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use tokio::stream::StreamExt;
 
 fn validate_channel(value: &Channel) -> Result<&Channel, String> {
     if value.channel.is_empty() {
@@ -88,12 +94,9 @@ impl ProgramServiceTrait for ProgramService {
         let program_id = match msg.program_id {
             Some(program_id) => match validate_program_id(&program_id) {
                 Ok(_) => Ok(program_id),
-                Err(msg) => Err(Status::failed_precondition(format!(
-                    "Violation in program_id => {}",
-                    msg
-                ))),
+                Err(msg) => Err(Status::invalid_argument(format!("Violation in program_id => {}", msg))),
             },
-            None => Err(Status::failed_precondition("Missing value: program_id")),
+            None => Err(Status::invalid_argument("Missing value: program_id")),
         }?;
 
         let id = program_store_key(&program_id);
@@ -116,24 +119,24 @@ impl ProgramServiceTrait for ProgramService {
         let msg = request.into_inner();
         let program = match msg.program {
             Some(p) => Ok(p),
-            None => Err(Status::failed_precondition("Missing value: program".to_string())),
+            None => Err(Status::invalid_argument("Missing value: program".to_string())),
         }?;
 
         if program.service_id == 0 {
-            return Err(Status::failed_precondition("Invalid value: service_id".to_string()));
+            return Err(Status::invalid_argument("Invalid value: service_id".to_string()));
         }
         if program.event_id == 0 {
-            return Err(Status::failed_precondition("Invalid value: event_id".to_string()));
+            return Err(Status::invalid_argument("Invalid value: event_id".to_string()));
         }
         if program.start_at == None {
-            return Err(Status::failed_precondition("Missing value: start_at".to_string()));
+            return Err(Status::invalid_argument("Missing value: start_at".to_string()));
         }
         if program.name.is_empty() {
-            return Err(Status::failed_precondition("Invalid value: name".to_string()));
+            return Err(Status::invalid_argument("Invalid value: name".to_string()));
         }
         if let Some(service) = &program.service {
             if let Err(msg) = validate_service(service) {
-                return Err(Status::failed_precondition(format!("Violation in service => {}", msg)));
+                return Err(Status::invalid_argument(format!("Violation in service => {}", msg)));
             }
         }
 
@@ -171,18 +174,15 @@ impl ProgramServiceTrait for ProgramService {
         let program_id = match msg.program_id {
             Some(program_id) => match validate_program_id(&program_id) {
                 Ok(_) => Ok(program_id),
-                Err(msg) => Err(Status::failed_precondition(format!(
-                    "Violation in program_id => {}",
-                    msg
-                ))),
+                Err(msg) => Err(Status::invalid_argument(format!("Violation in program_id => {}", msg))),
             },
-            None => Err(Status::failed_precondition("Missing value: program_id")),
+            None => Err(Status::invalid_argument("Missing value: program_id")),
         }?;
         if msg.key.is_empty() {
-            return Err(Status::failed_precondition("Invalid value: key"));
+            return Err(Status::invalid_argument("Invalid value: key"));
         }
         if msg.key.len() > 255 {
-            return Err(Status::failed_precondition("String too long: key"));
+            return Err(Status::invalid_argument("String too long: key"));
         }
 
         let id = program_store_key(&program_id);
@@ -226,16 +226,16 @@ impl ProgramServiceTrait for ProgramService {
                     msg
                 ))),
             },
-            None => Err(Status::failed_precondition("Missing value: program_id")),
+            None => Err(Status::invalid_argument("Missing value: program_id")),
         }?;
         if msg.key.is_empty() {
-            return Err(Status::failed_precondition("Invalid value: key"));
+            return Err(Status::invalid_argument("Invalid value: key"));
         }
         if msg.key.len() > 255 {
-            return Err(Status::failed_precondition("String too long: key"));
+            return Err(Status::invalid_argument("String too long: key"));
         }
         if msg.value.len() > 1 * 1024 * 1024 {
-            return Err(Status::failed_precondition("String too long: value"));
+            return Err(Status::invalid_argument("String too long: value"));
         }
 
         let id = program_store_key(&program_id);
@@ -254,15 +254,61 @@ impl ProgramServiceTrait for ProgramService {
     }
 }
 
+#[derive(Debug, Default)]
+struct VideoStorageService;
+
+#[tonic::async_trait]
+impl VideoStorageServiceTrait for VideoStorageService {
+    async fn create_video(
+        &self,
+        request: Request<tonic::Streaming<CreateVideoRequest>>,
+    ) -> Result<Response<CreateVideoResponse>, Status> {
+        let mut stream = request.into_inner();
+
+        let mut header = None::<VideoHeader>;
+        while let Some(msg) = stream.next().await {
+            let msg = msg?;
+            let part = match msg.part {
+                Some(part) => Ok(part),
+                None => Err(Status::invalid_argument("Missing value: part")),
+            }?;
+
+            match header {
+                Some(_) => match part {
+                    VideoPart::Datagram(data) => {
+                        // println!("offset = {}", data.offset);
+                    }
+                    _ => return Err(Status::invalid_argument("Invalid part: need datagram")),
+                },
+                None => match part {
+                    VideoPart::Header(h) => {
+                        println!("CreateVideo {:#?}", h);
+                        header = Some(h);
+                    }
+                    _ => return Err(Status::invalid_argument("Invalid part: need header")),
+                },
+            }
+        }
+        println!("CreateVideo finish");
+
+        Ok(Response::new(CreateVideoResponse { video: None }))
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::1]:50051".parse().unwrap();
-    let service = ProgramService::default();
+    let program_service = ProgramService::default();
+    let video_storage_service = VideoStorageService::default();
 
     println!("Server listening on {}", addr);
 
     Server::builder()
-        .add_service(ProgramServiceServer::with_interceptor(service, request_logger))
+        .add_service(ProgramServiceServer::with_interceptor(program_service, request_logger))
+        .add_service(VideoStorageServiceServer::with_interceptor(
+            video_storage_service,
+            request_logger,
+        ))
         .serve(addr)
         .await?;
 
