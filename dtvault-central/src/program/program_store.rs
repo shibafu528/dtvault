@@ -33,18 +33,18 @@ type ProgramStoreBackend = BTreeMap<ProgramKey, Arc<StoredProgram>>;
 type StoreReadPoisonError<'a> = PoisonError<RwLockReadGuard<'a, ProgramStoreBackend>>;
 type StoreWritePoisonError<'a> = PoisonError<RwLockWriteGuard<'a, ProgramStoreBackend>>;
 
-pub enum MetadataOperationError<'a, Poison> {
+pub enum MetadataWriteError<'a> {
     ProgramNotFound(&'a ProgramKey),
-    PoisonError(Poison),
+    PoisonError(StoreWritePoisonError<'a>),
 }
 
-impl<'a, T: std::error::Error + fmt::Display> From<T> for MetadataOperationError<'a, T> {
-    fn from(err: T) -> Self {
+impl<'a> From<StoreWritePoisonError<'a>> for MetadataWriteError<'a> {
+    fn from(err: StoreWritePoisonError<'a>) -> Self {
         Self::PoisonError(err)
     }
 }
 
-impl<T: fmt::Display> fmt::Display for MetadataOperationError<'_, T> {
+impl fmt::Display for MetadataWriteError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ProgramNotFound(key) => write!(f, "Program not found (id = {})", key),
@@ -100,39 +100,21 @@ impl ProgramStore {
         Ok((sp, notice))
     }
 
-    pub fn find_program_metadata<'a>(
+    pub fn update_program_metadata<'a>(
         &'a self,
         key: &'a ProgramKey,
         metadata_key: &str,
-    ) -> Result<String, MetadataOperationError<StoreReadPoisonError<'a>>> {
-        let store = self.store.read()?;
-        match store.get(key) {
-            Some(sp) => {
-                if let Some(value) = sp.metadata.get(metadata_key) {
-                    Ok(value.to_string())
-                } else {
-                    Ok("".to_string())
-                }
-            }
-            None => Err(MetadataOperationError::ProgramNotFound(key)),
-        }
-    }
-
-    pub fn update_program_metadata(
-        &self,
-        key: &ProgramKey,
-        metadata_key: &str,
         metadata_value: &str,
-    ) -> Result<bool, StoreWritePoisonError> {
+    ) -> Result<(), MetadataWriteError<'a>> {
         let mut store = self.store.write()?;
         match store.get(key) {
             Some(sp) => {
                 let mut sp = (**sp).clone();
                 sp.metadata.insert(metadata_key.to_string(), metadata_value.to_string());
                 store.insert(key.clone(), Arc::new(sp));
-                Ok(true)
+                Ok(())
             }
-            None => Ok(false),
+            None => Err(MetadataWriteError::ProgramNotFound(key)),
         }
     }
 }

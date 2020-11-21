@@ -108,12 +108,19 @@ impl ProgramServiceTrait for ProgramService {
         }
 
         let program_key = ProgramKey::from_program_id(&program_id);
-        let response = match self.store.find_program_metadata(&program_key, &msg.key) {
-            Ok(value) => Ok(Response::new(GetProgramMetadataResponse {
-                program_id: Some(program_id),
-                key: msg.key,
-                value: value.to_string(),
-            })),
+        let response = match self.store.find(&program_key) {
+            Ok(result) => match result {
+                Some(sp) => {
+                    let default = "".to_string();
+                    let value = sp.metadata().get(&msg.key).unwrap_or(&default);
+                    Ok(Response::new(GetProgramMetadataResponse {
+                        program_id: Some(program_id),
+                        key: msg.key,
+                        value: value.to_string(),
+                    }))
+                }
+                None => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
+            },
             Err(e) => Err(Status::aborted(format!("{}", e))),
         };
         response
@@ -146,12 +153,10 @@ impl ProgramServiceTrait for ProgramService {
         }
 
         let program_key = ProgramKey::from_program_id(&program_id);
-        match self.store.update_program_metadata(&program_key, &msg.key, &msg.value) {
-            Ok(result) => match result {
-                true => Ok(Response::new(UpdateProgramMetadataResponse {})),
-                false => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
-            },
+        let response = match self.store.update_program_metadata(&program_key, &msg.key, &msg.value) {
+            Ok(_) => Ok(Response::new(UpdateProgramMetadataResponse {})),
             Err(e) => Err(Status::aborted(format!("{}", e))),
-        }
+        };
+        response
     }
 }
