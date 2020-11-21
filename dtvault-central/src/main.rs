@@ -9,7 +9,7 @@ use tonic::{transport::Server, Request, Status};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = "[::1]:50051".parse().unwrap();
+    let addr = "[::0]:50051".parse().unwrap();
     let program_service = ProgramService::default();
     let video_storage_service = VideoStorageService::default();
 

@@ -11,10 +11,11 @@ tonic = "0.3"
 prost = "0.6"
 prost-types = "0.6"
 once_cell = "1.5"
+tempfile = "3.1"
 
 [dependencies.tokio]
 version = "0.2"
-features = ["macros"]
+features = ["rt-threaded", "time", "stream", "fs", "macros"]
 
 [dependencies.dtvault-types]
 path = "../dtvault-types"
