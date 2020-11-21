@@ -46,7 +46,7 @@ impl RecordedProgram {
             event_id: identity.event_id,
             start_at: identity.start_at,
             duration: Some(Duration::from(std::time::Duration::from_secs(self.seconds))),
-            name: self.title.clone(),
+            name: self.full_title.clone(),
             description: self.short_description().clone(),
             extended: self.extra_to_extented_event()?,
             service: Some(self.channel.to_message()?),
