@@ -6,6 +6,7 @@ import "program.proto";
 
 service ProgramService {
     rpc GetProgram (GetProgramRequest) returns (GetProgramResponse);
+    rpc ListPrograms (ListProgramsRequest) returns (ListProgramsResponse);
     rpc CreateProgram (CreateProgramRequest) returns (CreateProgramResponse);
     rpc GetProgramMetadata (GetProgramMetadataRequest) returns (GetProgramMetadataResponse);
     rpc UpdateProgramMetadata (UpdateProgramMetadataRequest) returns (UpdateProgramMetadataResponse);
@@ -17,6 +18,13 @@ message GetProgramRequest {
 
 message GetProgramResponse {
     Program program = 1;
+}
+
+message ListProgramsRequest {
+}
+
+message ListProgramsResponse {
+    repeated Program programs = 2;
 }
 
 message CreateProgramRequest {

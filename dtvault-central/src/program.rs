@@ -6,10 +6,7 @@ pub use self::program_key::*;
 pub use self::program_store::*;
 pub use self::validator::*;
 use dtvault_types::shibafu528::dtvault::central::program_service_server::ProgramService as ProgramServiceTrait;
-use dtvault_types::shibafu528::dtvault::central::{
-    CreateProgramRequest, CreateProgramResponse, GetProgramMetadataRequest, GetProgramMetadataResponse,
-    GetProgramRequest, GetProgramResponse, UpdateProgramMetadataRequest, UpdateProgramMetadataResponse,
-};
+use dtvault_types::shibafu528::dtvault::central::*;
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
@@ -46,6 +43,17 @@ impl ProgramServiceTrait for ProgramService {
             },
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }
+    }
+
+    async fn list_programs(
+        &self,
+        _request: Request<ListProgramsRequest>,
+    ) -> Result<Response<ListProgramsResponse>, Status> {
+        let programs = self.store.all().map_err(|e| Status::aborted(format!("{}", e)))?;
+        let res = ListProgramsResponse {
+            programs: programs.iter().map(|sp| sp.program().clone()).collect(),
+        };
+        Ok(Response::new(res))
     }
 
     async fn create_program(

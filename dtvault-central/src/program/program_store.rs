@@ -78,6 +78,11 @@ impl ProgramStore {
         }
     }
 
+    pub fn all(&self) -> Result<Vec<Arc<StoredProgram>>, StoreReadPoisonError> {
+        let store = self.store.read()?;
+        Ok(store.values().cloned().collect())
+    }
+
     pub fn find(&self, key: &ProgramKey) -> Result<Option<Arc<StoredProgram>>, StoreReadPoisonError> {
         let store = self.store.read()?;
         Ok(store.get(key).map(Arc::clone))
