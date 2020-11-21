@@ -1,17 +1,19 @@
 mod program;
 mod video_storage;
 
-use crate::program::ProgramService;
+use crate::program::{ProgramService, ProgramStore};
 use crate::video_storage::VideoStorageService;
 use dtvault_types::shibafu528::dtvault::central::program_service_server::ProgramServiceServer;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageServiceServer;
+use std::sync::Arc;
 use tonic::{transport::Server, Request, Status};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "[::0]:50051".parse().unwrap();
-    let program_service = ProgramService::default();
-    let video_storage_service = VideoStorageService::default();
+    let program_store = Arc::new(ProgramStore::new());
+    let program_service = ProgramService::new(program_store.clone());
+    let video_storage_service = VideoStorageService::new(program_store.clone());
 
     println!("Server listening on {}", addr);
 

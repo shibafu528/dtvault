@@ -1,7 +1,8 @@
-use crate::program::{program_store_key, validate_program_id, PROGRAM_STORE};
+use crate::program::{validate_program_id, ProgramKey, ProgramStore};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::{Header as VideoHeader, Part as VideoPart};
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageService as VideoStorageServiceTrait;
 use dtvault_types::shibafu528::dtvault::storage::{CreateVideoRequest, CreateVideoResponse};
+use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::BufWriter;
 use tokio::prelude::*;
@@ -12,8 +13,15 @@ fn map_io_error(e: tokio::io::Error) -> Status {
     Status::internal(format!("IO error: {}", e))
 }
 
-#[derive(Debug, Default)]
-pub struct VideoStorageService;
+pub struct VideoStorageService {
+    store: Arc<ProgramStore>,
+}
+
+impl VideoStorageService {
+    pub fn new(store: Arc<ProgramStore>) -> Self {
+        VideoStorageService { store }
+    }
+}
 
 #[tonic::async_trait]
 impl VideoStorageServiceTrait for VideoStorageService {
@@ -60,15 +68,14 @@ impl VideoStorageServiceTrait for VideoStorageService {
                             None => Err(Status::invalid_argument("Missing value: program_id")),
                         }?;
 
-                        let id = program_store_key(&program_id);
-
-                        match PROGRAM_STORE.lock() {
-                            Ok(mut store) => match store.get_mut(&id) {
-                                Some(_sp) => {}
-                                None => return Err(Status::not_found(format!("Program not found (id = {})", id))),
+                        let program_key = ProgramKey::from_program_id(&program_id);
+                        match self.store.find(&program_key) {
+                            Ok(result) => match result {
+                                Some(_sp) => Ok(()),
+                                None => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
                             },
-                            Err(e) => return Err(Status::aborted(format!("{}", e))),
-                        };
+                            Err(e) => Err(Status::aborted(format!("{}", e))),
+                        }?;
 
                         header = Some(h);
                     }

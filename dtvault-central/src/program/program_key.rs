@@ -1,0 +1,51 @@
+use dtvault_types::shibafu528::dtvault::{Program, ProgramIdentity};
+use std::fmt;
+
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq)]
+pub struct ProgramKey {
+    start_at: std::time::Duration,
+    network_id: u16,
+    service_id: u16,
+    event_id: u16,
+}
+
+impl ProgramKey {
+    pub fn from_program(program: &Program) -> Self {
+        ProgramKey {
+            start_at: program
+                .start_at
+                .as_ref()
+                .map(|v| std::time::Duration::new(v.seconds as u64, v.nanos as u32))
+                .unwrap(),
+            network_id: program.network_id as u16,
+            service_id: program.service_id as u16,
+            event_id: program.event_id as u16,
+        }
+    }
+
+    pub fn from_program_id(program_id: &ProgramIdentity) -> Self {
+        ProgramKey {
+            start_at: program_id
+                .start_at
+                .as_ref()
+                .map(|v| std::time::Duration::new(v.seconds as u64, v.nanos as u32))
+                .unwrap(),
+            network_id: program_id.network_id as u16,
+            service_id: program_id.service_id as u16,
+            event_id: program_id.event_id as u16,
+        }
+    }
+}
+
+impl fmt::Display for ProgramKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{{network_id={}, service_id={}, event_id={}, start_at={}}}",
+            self.network_id,
+            self.service_id,
+            self.event_id,
+            self.start_at.as_secs_f64()
+        )
+    }
+}

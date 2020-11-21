@@ -121,6 +121,7 @@ dependencies = [
  "prost",
  "prost-types",
  "tempfile",
+ "thiserror",
  "tokio",
  "tonic",
 ]

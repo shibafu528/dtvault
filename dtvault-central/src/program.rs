@@ -1,91 +1,27 @@
-use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as ResponseStatus;
+mod program_key;
+mod program_store;
+mod validator;
+
+pub use self::program_key::*;
+pub use self::program_store::*;
+pub use self::validator::*;
 use dtvault_types::shibafu528::dtvault::central::program_service_server::ProgramService as ProgramServiceTrait;
 use dtvault_types::shibafu528::dtvault::central::{
     CreateProgramRequest, CreateProgramResponse, GetProgramMetadataRequest, GetProgramMetadataResponse,
     GetProgramRequest, GetProgramResponse, UpdateProgramMetadataRequest, UpdateProgramMetadataResponse,
 };
-use dtvault_types::shibafu528::dtvault::{Channel, Program, ProgramIdentity, Service};
-use once_cell::sync::Lazy;
-use prost_types::Timestamp;
-use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::Arc;
 use tonic::{Request, Response, Status};
 
-pub struct StoredProgram {
-    program: Program,
-    metadata: HashMap<String, String>,
+pub struct ProgramService {
+    store: Arc<ProgramStore>,
 }
 
-impl StoredProgram {
-    pub fn new(program: Program) -> Self {
-        StoredProgram {
-            program,
-            metadata: HashMap::new(),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn program(&self) -> &Program {
-        &self.program
-    }
-
-    #[allow(dead_code)]
-    pub fn metadata(&self) -> &HashMap<String, String> {
-        &self.metadata
+impl ProgramService {
+    pub fn new(store: Arc<ProgramStore>) -> Self {
+        ProgramService { store }
     }
 }
-
-// TODO: ちゃんと保存する
-pub static PROGRAM_STORE: Lazy<Mutex<HashMap<String, StoredProgram>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-
-pub fn program_store_key(id: &ProgramIdentity) -> String {
-    let start_at = id.start_at.as_ref().unwrap_or(&Timestamp { seconds: 0, nanos: 0 });
-    format!(
-        "{}_{}_{}_{}_{}",
-        id.network_id, id.service_id, id.event_id, start_at.seconds, start_at.nanos
-    )
-}
-
-pub fn validate_channel(value: &Channel) -> Result<&Channel, String> {
-    if value.channel.is_empty() {
-        return Err("Invalid value: channel".to_string());
-    }
-    if value.name.is_empty() {
-        return Err("Invalid value: name".to_string());
-    }
-
-    Ok(value)
-}
-
-pub fn validate_service(value: &Service) -> Result<&Service, String> {
-    if value.service_id == 0 {
-        return Err("Invalid value: service_id".to_string());
-    }
-    if let Some(channel) = &value.channel {
-        if let Err(msg) = validate_channel(channel) {
-            return Err(format!("Violation in channel => {}", msg));
-        }
-    }
-
-    Ok(value)
-}
-
-pub fn validate_program_id(value: &ProgramIdentity) -> Result<&ProgramIdentity, String> {
-    if value.service_id == 0 {
-        return Err("Invalid value: service_id".to_string());
-    }
-    if value.event_id == 0 {
-        return Err("Invalid value: event_id".to_string());
-    }
-    if value.start_at == None {
-        return Err("Missing value: start_at".to_string());
-    }
-
-    Ok(value)
-}
-
-#[derive(Debug, Default)]
-pub struct ProgramService;
 
 #[tonic::async_trait]
 impl ProgramServiceTrait for ProgramService {
@@ -100,14 +36,13 @@ impl ProgramServiceTrait for ProgramService {
             None => Err(Status::invalid_argument("Missing value: program_id")),
         }?;
 
-        let id = program_store_key(&program_id);
-
-        match PROGRAM_STORE.lock() {
-            Ok(store) => match store.get(&id) {
+        let program_key = ProgramKey::from_program_id(&program_id);
+        match self.store.find(&program_key) {
+            Ok(result) => match result {
                 Some(sp) => Ok(Response::new(GetProgramResponse {
-                    program: Some(sp.program.clone()),
+                    program: Some(sp.program().clone()),
                 })),
-                None => Err(Status::not_found(format!("Program not found (id = {})", id))),
+                None => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
             },
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }
@@ -142,27 +77,13 @@ impl ProgramServiceTrait for ProgramService {
         }
 
         println!("Accept => {:#?}", program);
-        let (status, ret_program) = match PROGRAM_STORE.lock() {
-            Ok(mut store) => {
-                let start_at = program.start_at.as_ref().unwrap();
-                let id = format!(
-                    "{}_{}_{}_{}_{}",
-                    program.network_id, program.service_id, program.event_id, start_at.seconds, start_at.nanos
-                );
-                if let Some(prog) = store.get(&id) {
-                    Ok((ResponseStatus::AlreadyExists, prog.program.clone()))
-                } else {
-                    store.insert(id, StoredProgram::new(program.clone()));
-                    Ok((ResponseStatus::Created, program))
-                }
-            }
+        let res = match self.store.find_or_create(program) {
+            Ok((sp, notice)) => Ok(CreateProgramResponse {
+                status: notice.into(),
+                program: Some(sp.program().clone()),
+            }),
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }?;
-
-        let res = CreateProgramResponse {
-            status: status.into(),
-            program: Some(ret_program),
-        };
         Ok(Response::new(res))
     }
 
@@ -186,31 +107,16 @@ impl ProgramServiceTrait for ProgramService {
             return Err(Status::invalid_argument("String too long: key"));
         }
 
-        let id = program_store_key(&program_id);
-
-        match PROGRAM_STORE.lock() {
-            Ok(store) => match store.get(&id) {
-                Some(sp) => {
-                    println!("PID = {:?}, {:?}", program_id, &msg.key);
-
-                    if let Some(value) = sp.metadata.get(&msg.key) {
-                        Ok(Response::new(GetProgramMetadataResponse {
-                            program_id: Some(program_id),
-                            key: msg.key,
-                            value: value.to_string(),
-                        }))
-                    } else {
-                        Ok(Response::new(GetProgramMetadataResponse {
-                            program_id: Some(program_id),
-                            key: msg.key,
-                            value: "".to_string(),
-                        }))
-                    }
-                }
-                None => Err(Status::not_found(format!("Program not found (id = {})", id))),
-            },
+        let program_key = ProgramKey::from_program_id(&program_id);
+        let response = match self.store.find_program_metadata(&program_key, &msg.key) {
+            Ok(value) => Ok(Response::new(GetProgramMetadataResponse {
+                program_id: Some(program_id),
+                key: msg.key,
+                value: value.to_string(),
+            })),
             Err(e) => Err(Status::aborted(format!("{}", e))),
-        }
+        };
+        response
     }
 
     async fn update_program_metadata(
@@ -239,16 +145,11 @@ impl ProgramServiceTrait for ProgramService {
             return Err(Status::invalid_argument("String too long: value"));
         }
 
-        let id = program_store_key(&program_id);
-
-        match PROGRAM_STORE.lock() {
-            Ok(mut store) => match store.get_mut(&id) {
-                Some(sp) => {
-                    println!("PID = {:?}, {:?} => {:?}", program_id, &msg.key, &msg.value);
-                    sp.metadata.insert(msg.key, msg.value);
-                    Ok(Response::new(UpdateProgramMetadataResponse {}))
-                }
-                None => Err(Status::not_found(format!("Program not found (id = {})", id))),
+        let program_key = ProgramKey::from_program_id(&program_id);
+        match self.store.update_program_metadata(&program_key, &msg.key, &msg.value) {
+            Ok(result) => match result {
+                true => Ok(Response::new(UpdateProgramMetadataResponse {})),
+                false => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
             },
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }
