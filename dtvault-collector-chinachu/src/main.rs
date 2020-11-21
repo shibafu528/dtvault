@@ -1,3 +1,7 @@
+mod program_id;
+mod record_with_raw;
+mod recorded_program;
+
 use crate::record_with_raw::RecordWithRaw;
 use clap::{App, Arg};
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as CreateProgramStatus;
@@ -13,10 +17,6 @@ use std::io::{BufReader, Read};
 use std::time::Instant;
 use tokio::sync::mpsc;
 use tonic::transport::Uri;
-
-mod program_id;
-mod record_with_raw;
-mod recorded_program;
 
 #[derive(Deserialize, Debug)]
 struct Config {
