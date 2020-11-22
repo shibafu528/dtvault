@@ -1,8 +1,13 @@
 use crate::program::ProgramKey;
+use crate::Config;
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as ResponseStatus;
-use dtvault_types::shibafu528::dtvault::Program;
+use dtvault_types::shibafu528::dtvault::{PersistProgram, Program};
+use fs2::FileExt;
+use prost::bytes::Buf;
+use prost::Message;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
+use std::io::Write;
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Clone)]
@@ -17,6 +22,10 @@ impl StoredProgram {
             program,
             metadata: HashMap::new(),
         }
+    }
+
+    fn with_metadata(program: Program, metadata: HashMap<String, String>) -> Self {
+        StoredProgram { program, metadata }
     }
 
     pub fn program(&self) -> &Program {
@@ -66,15 +75,47 @@ impl Into<i32> for FindOrCreateNotice {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum InitializeError {
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("Protobuf decode error: {0}")]
+    DecodeError(#[from] prost::DecodeError),
+    #[error("Protobuf decode error: broken message ({}) in position {}", .description, .position)]
+    BrokenMessage { position: usize, description: String },
+}
+
 pub struct ProgramStore {
+    config: Arc<Config>,
     store: RwLock<ProgramStoreBackend>,
 }
 
 impl ProgramStore {
-    pub fn new() -> Self {
-        ProgramStore {
-            store: RwLock::new(ProgramStoreBackend::new()),
+    pub fn new(config: Arc<Config>) -> Result<Self, InitializeError> {
+        let mut store = ProgramStoreBackend::new();
+
+        let path = config.programs_file_path();
+        if path.is_file() {
+            let bin = std::fs::read(path)?;
+            let mut buf = &bin[..];
+            while buf.has_remaining() {
+                let position = bin.len() - buf.remaining(); // for error report
+                let persisted = PersistProgram::decode_length_delimited(&mut buf)?;
+                let program = persisted.program.ok_or_else(|| InitializeError::BrokenMessage {
+                    position,
+                    description: "Missing value: `program`".to_string(),
+                })?;
+                let key = ProgramKey::from_program(&program);
+                store.insert(key, Arc::new(StoredProgram::with_metadata(program, persisted.metadata)));
+            }
+
+            println!("{} programs loaded.", store.len());
         }
+
+        Ok(ProgramStore {
+            config,
+            store: RwLock::new(store),
+        })
     }
 
     pub fn all(&self) -> Result<Vec<Arc<StoredProgram>>, StoreReadPoisonError> {
@@ -101,6 +142,9 @@ impl ProgramStore {
                 Arc::new(StoredProgram::new(program.clone()))
             })
             .clone();
+        if let FindOrCreateNotice::Created = notice {
+            self.persist(&store);
+        }
         Ok((sp, notice))
     }
 
@@ -116,9 +160,32 @@ impl ProgramStore {
                 let mut sp = (**sp).clone();
                 sp.metadata.insert(metadata_key.to_string(), metadata_value.to_string());
                 store.insert(key.clone(), Arc::new(sp));
+                self.persist(&store);
                 Ok(())
             }
             None => Err(MetadataWriteError::ProgramNotFound(key)),
         }
+    }
+
+    // TODO: 非同期化する
+    fn persist<'a>(&self, store: &RwLockWriteGuard<'a, ProgramStoreBackend>) {
+        let path = self.config.programs_file_path();
+        let file = std::fs::File::create(path).unwrap();
+        file.lock_exclusive().unwrap();
+
+        let mut writer = std::io::BufWriter::new(&file);
+        for program in store.values() {
+            let pp = PersistProgram {
+                program: Some(program.program.clone()),
+                metadata: program.metadata.clone(),
+            };
+
+            let mut buf: Vec<u8> = vec![];
+            pp.encode_length_delimited(&mut buf).unwrap();
+            writer.write(&buf).unwrap();
+        }
+        writer.flush().unwrap();
+
+        file.unlock().unwrap();
     }
 }

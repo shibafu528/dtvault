@@ -29,3 +29,8 @@ message ProgramIdentity {
     uint32 event_id = 3;
     google.protobuf.Timestamp start_at = 4;
 }
+
+message PersistProgram {
+    Program program = 1;
+    map<string, string> metadata = 2;
+}
