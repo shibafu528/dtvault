@@ -23,7 +23,6 @@ impl StoredProgram {
         &self.program
     }
 
-    #[allow(dead_code)]
     pub fn metadata(&self) -> &HashMap<String, String> {
         &self.metadata
     }
