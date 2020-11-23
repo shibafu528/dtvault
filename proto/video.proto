@@ -11,4 +11,6 @@ message Video {
     uint64 total_length = 4;
     string file_name = 5;
     string mime_type = 6;
+    string storage_id = 7;
+    string prefix = 8;
 }

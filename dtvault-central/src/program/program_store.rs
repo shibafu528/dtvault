@@ -1,7 +1,8 @@
 use crate::program::ProgramKey;
 use crate::Config;
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as ResponseStatus;
-use dtvault_types::shibafu528::dtvault::{PersistProgram, Program};
+use dtvault_types::shibafu528::dtvault::central::PersistProgram;
+use dtvault_types::shibafu528::dtvault::{Program, Video};
 use fs2::FileExt;
 use prost::bytes::Buf;
 use prost::Message;
@@ -14,6 +15,7 @@ use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 pub struct StoredProgram {
     program: Program,
     metadata: HashMap<String, String>,
+    videos: Vec<Video>,
 }
 
 impl StoredProgram {
@@ -21,11 +23,19 @@ impl StoredProgram {
         StoredProgram {
             program,
             metadata: HashMap::new(),
+            videos: Vec::new(),
         }
     }
 
-    fn with_metadata(program: Program, metadata: HashMap<String, String>) -> Self {
-        StoredProgram { program, metadata }
+    fn from_persisted(persisted: PersistProgram) -> Result<Self, String> {
+        let program = persisted
+            .program
+            .ok_or_else(|| "Missing value: `program`".to_string())?;
+        Ok(StoredProgram {
+            program,
+            metadata: persisted.metadata,
+            videos: persisted.videos,
+        })
     }
 
     pub fn program(&self) -> &Program {
@@ -34,6 +44,20 @@ impl StoredProgram {
 
     pub fn metadata(&self) -> &HashMap<String, String> {
         &self.metadata
+    }
+}
+
+pub struct StoredVideo {
+    video: Video,
+    metadata: HashMap<String, String>,
+}
+
+impl StoredVideo {
+    fn new(video: Video) -> Self {
+        StoredVideo {
+            video,
+            metadata: HashMap::new(),
+        }
     }
 }
 
@@ -101,12 +125,9 @@ impl ProgramStore {
             while buf.has_remaining() {
                 let position = bin.len() - buf.remaining(); // for error report
                 let persisted = PersistProgram::decode_length_delimited(&mut buf)?;
-                let program = persisted.program.ok_or_else(|| InitializeError::BrokenMessage {
-                    position,
-                    description: "Missing value: `program`".to_string(),
-                })?;
-                let key = ProgramKey::from_program(&program);
-                store.insert(key, Arc::new(StoredProgram::with_metadata(program, persisted.metadata)));
+                let sp = StoredProgram::from_persisted(persisted)
+                    .map_err(|description| InitializeError::BrokenMessage { position, description })?;
+                store.insert(ProgramKey::from_program(&sp.program), Arc::new(sp));
             }
 
             println!("{} programs loaded.", store.len());
@@ -178,6 +199,7 @@ impl ProgramStore {
             let pp = PersistProgram {
                 program: Some(program.program.clone()),
                 metadata: program.metadata.clone(),
+                videos: program.videos.clone(),
             };
 
             let mut buf: Vec<u8> = vec![];

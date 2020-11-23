@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package shibafu528.dtvault.central;
+
+import "program.proto";
+import "video.proto";
+
+message PersistProgram {
+    Program program = 1;
+    map<string, string> metadata = 2;
+    repeated Video videos = 3;
+}
+
+message PersistVideo {
+    Video video = 1;
+    map<string, string> metadata = 2;
+}
