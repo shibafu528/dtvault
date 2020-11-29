@@ -1,3 +1,4 @@
+use super::Program as StoredProgram;
 use dtvault_types::shibafu528::dtvault::{Program, ProgramIdentity};
 use std::fmt;
 
@@ -17,6 +18,15 @@ impl ProgramKey {
                 .as_ref()
                 .map(|v| std::time::Duration::new(v.seconds as u64, v.nanos as u32))
                 .unwrap(),
+            network_id: program.network_id as u16,
+            service_id: program.service_id as u16,
+            event_id: program.event_id as u16,
+        }
+    }
+
+    pub fn from_stored_program(program: &StoredProgram) -> Self {
+        ProgramKey {
+            start_at: program.start_at,
             network_id: program.network_id as u16,
             service_id: program.service_id as u16,
             event_id: program.event_id as u16,

@@ -1,7 +1,10 @@
+mod model;
 mod program_key;
 mod program_store;
+mod prost_convert;
 mod validator;
 
+pub use self::model::*;
 pub use self::program_key::*;
 pub use self::program_store::*;
 pub use self::validator::*;
@@ -37,7 +40,7 @@ impl ProgramServiceTrait for ProgramService {
         match self.store.find(&program_key) {
             Ok(result) => match result {
                 Some(sp) => Ok(Response::new(GetProgramResponse {
-                    program: Some(sp.program().clone()),
+                    program: Some(sp.exchangeable()),
                 })),
                 None => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
             },
@@ -51,7 +54,7 @@ impl ProgramServiceTrait for ProgramService {
     ) -> Result<Response<ListProgramsResponse>, Status> {
         let programs = self.store.all().map_err(|e| Status::aborted(format!("{}", e)))?;
         let res = ListProgramsResponse {
-            programs: programs.iter().map(|sp| sp.program().clone()).collect(),
+            programs: programs.iter().map(|sp| sp.exchangeable()).collect(),
         };
         Ok(Response::new(res))
     }
@@ -88,7 +91,7 @@ impl ProgramServiceTrait for ProgramService {
         let res = match self.store.find_or_create(program) {
             Ok((sp, notice)) => Ok(CreateProgramResponse {
                 status: notice.into(),
-                program: Some(sp.program().clone()),
+                program: Some(sp.exchangeable()),
             }),
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }?;

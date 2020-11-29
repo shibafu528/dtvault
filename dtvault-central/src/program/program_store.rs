@@ -1,4 +1,5 @@
 use crate::program::ProgramKey;
+use crate::program::{Persistence, Program as StoredProgram};
 use crate::Config;
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as ResponseStatus;
 use dtvault_types::shibafu528::dtvault::central::PersistProgram;
@@ -6,60 +7,10 @@ use dtvault_types::shibafu528::dtvault::{Program, Video};
 use fs2::FileExt;
 use prost::bytes::Buf;
 use prost::Message;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Write;
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
-
-#[derive(Clone)]
-pub struct StoredProgram {
-    program: Program,
-    metadata: HashMap<String, String>,
-    videos: Vec<Video>,
-}
-
-impl StoredProgram {
-    fn new(program: Program) -> Self {
-        StoredProgram {
-            program,
-            metadata: HashMap::new(),
-            videos: Vec::new(),
-        }
-    }
-
-    fn from_persisted(persisted: PersistProgram) -> Result<Self, String> {
-        let program = persisted
-            .program
-            .ok_or_else(|| "Missing value: `program`".to_string())?;
-        Ok(StoredProgram {
-            program,
-            metadata: persisted.metadata,
-            videos: persisted.videos,
-        })
-    }
-
-    pub fn program(&self) -> &Program {
-        &self.program
-    }
-
-    pub fn metadata(&self) -> &HashMap<String, String> {
-        &self.metadata
-    }
-}
-
-pub struct StoredVideo {
-    video: Video,
-    metadata: HashMap<String, String>,
-}
-
-impl StoredVideo {
-    fn new(video: Video) -> Self {
-        StoredVideo {
-            video,
-            metadata: HashMap::new(),
-        }
-    }
-}
 
 type ProgramStoreBackend = BTreeMap<ProgramKey, Arc<StoredProgram>>;
 type StoreReadPoisonError<'a> = PoisonError<RwLockReadGuard<'a, ProgramStoreBackend>>;
@@ -125,9 +76,11 @@ impl ProgramStore {
             while buf.has_remaining() {
                 let position = bin.len() - buf.remaining(); // for error report
                 let persisted = PersistProgram::decode_length_delimited(&mut buf)?;
-                let sp = StoredProgram::from_persisted(persisted)
-                    .map_err(|description| InitializeError::BrokenMessage { position, description })?;
-                store.insert(ProgramKey::from_program(&sp.program), Arc::new(sp));
+                let sp = StoredProgram::from_persisted(persisted).map_err(|err| InitializeError::BrokenMessage {
+                    position,
+                    description: format!("{}", err),
+                })?;
+                store.insert(ProgramKey::from_stored_program(&sp), Arc::new(sp));
             }
 
             println!("{} programs loaded.", store.len());
@@ -160,7 +113,7 @@ impl ProgramStore {
             .entry(key)
             .or_insert_with(|| {
                 notice = FindOrCreateNotice::Created;
-                Arc::new(StoredProgram::new(program.clone()))
+                Arc::new(StoredProgram::from_exchanged(program.clone()).unwrap())
             })
             .clone();
         if let FindOrCreateNotice::Created = notice {
@@ -179,7 +132,8 @@ impl ProgramStore {
         match store.get(key) {
             Some(sp) => {
                 let mut sp = (**sp).clone();
-                sp.metadata.insert(metadata_key.to_string(), metadata_value.to_string());
+                sp.metadata_mut()
+                    .insert(metadata_key.to_string(), metadata_value.to_string());
                 store.insert(key.clone(), Arc::new(sp));
                 self.persist(&store);
                 Ok(())
@@ -196,14 +150,8 @@ impl ProgramStore {
 
         let mut writer = std::io::BufWriter::new(&file);
         for program in store.values() {
-            let pp = PersistProgram {
-                program: Some(program.program.clone()),
-                metadata: program.metadata.clone(),
-                videos: program.videos.clone(),
-            };
-
             let mut buf: Vec<u8> = vec![];
-            pp.encode_length_delimited(&mut buf).unwrap();
+            program.persist().encode_length_delimited(&mut buf).unwrap();
             writer.write(&buf).unwrap();
         }
         writer.flush().unwrap();

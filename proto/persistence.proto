@@ -2,16 +2,51 @@ syntax = "proto3";
 
 package shibafu528.dtvault.central;
 
-import "program.proto";
-import "video.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
 
 message PersistProgram {
-    Program program = 1;
-    map<string, string> metadata = 2;
-    repeated Video videos = 3;
+    message ExtendedEvent {
+        string key = 1;
+        string value = 2;
+    }
+
+    string id = 1;
+    uint32 network_id = 2;
+    uint32 service_id = 3;
+    uint32 event_id = 4;
+    google.protobuf.Timestamp start_at = 5;
+    google.protobuf.Duration duration = 6;
+    string name = 7;
+    string description = 8;
+    repeated ExtendedEvent extended = 9;
+    PersistService service = 10;
+    map<string, string> metadata = 11;
+    repeated PersistVideo videos = 12;
+}
+
+message PersistChannel {
+    enum ChannelType {
+        CHANNEL_UNKNOWN = 0;
+        GR = 1;
+        BS = 2;
+        CS = 3;
+        SKY = 4;
+    }
+
+    ChannelType channel_type = 1;
+    string channel = 2;
+    string name = 3;
+}
+
+message PersistService {
+    uint32 network_id = 1;
+    uint32 service_id = 2;
+    string name = 3;
+    // 受信に用いた物理チャンネル
+    PersistChannel channel = 4;
 }
 
 message PersistVideo {
-    Video video = 1;
-    map<string, string> metadata = 2;
+    // TODO
 }
