@@ -1,3 +1,6 @@
+mod storage;
+
+pub use self::storage::*;
 use crate::program::{validate_program_id, ProgramKey, ProgramStore};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::{Header as VideoHeader, Part as VideoPart};
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageService as VideoStorageServiceTrait;
