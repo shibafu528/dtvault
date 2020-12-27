@@ -316,11 +316,11 @@ impl Persistence<PersistExtendedEvent> for ExtendedEvent {
 
 #[derive(Clone)]
 pub struct Video {
-    id: Uuid,
+    pub id: Uuid,
     provider_id: String,
     program_id: Uuid,
     total_length: u64,
-    file_name: String,
+    pub file_name: String,
     original_file_name: String,
     mime_type: Mime,
     storage_id: Uuid,
