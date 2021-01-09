@@ -6,6 +6,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::fs::File;
 use tokio::io::AsyncWrite;
+use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 #[tonic::async_trait]
@@ -20,6 +21,7 @@ pub struct FileSystem {
     lock_file_path: PathBuf,
 }
 
+// TODO: 全体的に、一時ファイルを用いた安全なファイル更新を行いたい (QtのQSaveFileのような)
 impl FileSystem {
     pub fn new(root_dir: String) -> Self {
         let lock_file_path = PathBuf::from(&root_dir).join(".dtvault_storage");
@@ -67,9 +69,36 @@ impl FileSystem {
         Ok(video_dir)
     }
 
-    async fn store_metadata(&self, program: &Program) -> Result<(), CreateError> {
-        // TODO: backup program.json, metadata.json
-        unimplemented!()
+    async fn store_metadata(&self, video_dir: &PathBuf, program: &Program) -> Result<(), CreateError> {
+        let program_json = match serde_json::to_string_pretty(&program) {
+            Ok(json) => json,
+            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
+        };
+
+        match tokio::fs::File::create(video_dir.join("program.json")).await {
+            Ok(mut f) => {
+                if let Err(e) = f.write_all(program_json.as_bytes()).await {
+                    return Err(CreateError::MetadataBackupFailed(e.to_string()));
+                }
+            }
+            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
+        }
+
+        let metadata_json = match serde_json::to_string_pretty(program.metadata()) {
+            Ok(json) => json,
+            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
+        };
+
+        match tokio::fs::File::create(video_dir.join("metadata.json")).await {
+            Ok(mut f) => {
+                if let Err(e) = f.write_all(metadata_json.as_bytes()).await {
+                    return Err(CreateError::MetadataBackupFailed(e.to_string()));
+                }
+            }
+            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
+        }
+
+        Ok(())
     }
 }
 
@@ -96,7 +125,7 @@ impl Storage<FSWriter> for FileSystem {
         let lock = self.take_shared_lock()?;
 
         let video_dir = self.create_video_dir(video).await?;
-        self.store_metadata(program).await?;
+        self.store_metadata(&video_dir, program).await?;
 
         let path = video_dir.as_path().join(&video.file_name);
         let file = match tokio::fs::File::create(path).await {
@@ -122,6 +151,9 @@ pub enum CreateError {
     Unavailable(#[from] UnavailableError),
     #[error("Can't create video directory")]
     CantCreateDirectory,
+    // TODO: MetadataBackupFailedは型を独立させたほうが取り回しやすいかも
+    #[error("Metadata backup failed: {0}")]
+    MetadataBackupFailed(String),
 }
 
 pub struct FSSharedLock {

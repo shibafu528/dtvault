@@ -2,7 +2,7 @@ mod program;
 mod video_storage;
 
 use crate::program::{ProgramService, ProgramStore};
-use crate::video_storage::VideoStorageService;
+use crate::video_storage::{FileSystem, VideoStorageService};
 use dtvault_types::shibafu528::dtvault::central::program_service_server::ProgramServiceServer;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageServiceServer;
 use envy::Error as EnvyError;
@@ -45,11 +45,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.check_and_create_data_dir()?;
     let config = Arc::new(config);
 
-    let addr = "[::0]:50051".parse().unwrap();
     let program_store = Arc::new(ProgramStore::new(config.clone())?);
     let program_service = ProgramService::new(program_store.clone());
-    let video_storage_service = VideoStorageService::new(program_store.clone());
+    let storage = Arc::new(FileSystem::new(config.storage_dir.to_string()));
+    let video_storage_service = VideoStorageService::new(program_store.clone(), storage.clone());
 
+    let addr = "[::0]:50051".parse().unwrap();
     println!("Server listening on {}", addr);
 
     Server::builder()

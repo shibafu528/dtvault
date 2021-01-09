@@ -5,6 +5,7 @@ use dtvault_types::shibafu528::dtvault::central::{PersistChannel, PersistProgram
 use mime::Mime;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::time::Duration;
 use uuid::Uuid;
@@ -24,7 +25,7 @@ pub trait Persistence<T> {
     fn persist(&self) -> T;
 }
 
-#[derive(FromPrimitive, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(FromPrimitive, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Serialize)]
 pub enum ChannelType {
     GR = 1,
     BS = 2,
@@ -32,7 +33,7 @@ pub enum ChannelType {
     Sky = 4,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct Channel {
     channel_type: ChannelType,
     channel: String,
@@ -84,7 +85,7 @@ impl Persistence<PersistChannel> for Channel {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct Service {
     network_id: u16,
     service_id: u16,
@@ -138,8 +139,9 @@ impl Persistence<PersistService> for Service {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct Program {
+    #[serde(serialize_with = "serialize_uuid")]
     id: Uuid,
     pub network_id: u16,
     pub service_id: u16,
@@ -150,8 +152,17 @@ pub struct Program {
     description: String,
     extended: Vec<ExtendedEvent>,
     service: Option<Service>,
+    #[serde(skip)]
     metadata: HashMap<String, String>,
+    #[serde(skip)]
     videos: Vec<Video>,
+}
+
+fn serialize_uuid<S>(value: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(value.to_hyphenated().encode_lower(&mut Uuid::encode_buffer()))
 }
 
 impl Program {
@@ -276,7 +287,7 @@ impl Persistence<PersistProgram> for Program {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct ExtendedEvent {
     key: String,
     value: String,
