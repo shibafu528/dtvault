@@ -1,8 +1,9 @@
-use crate::program::ProgramKey;
 use crate::program::{Persistence, Program as StoredProgram};
+use crate::program::{ProgramKey, Video as StoredVideo};
 use crate::Config;
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as ResponseStatus;
 use dtvault_types::shibafu528::dtvault::central::PersistProgram;
+use dtvault_types::shibafu528::dtvault::storage::create_video_request::Header as VideoHeader;
 use dtvault_types::shibafu528::dtvault::{Program, Video};
 use fs2::FileExt;
 use prost::bytes::Buf;
@@ -31,6 +32,28 @@ impl fmt::Display for MetadataWriteError<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ProgramNotFound(key) => write!(f, "Program not found (id = {})", key),
+            Self::PoisonError(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+pub enum VideoWriteError<'a> {
+    ProgramNotFound(&'a ProgramKey),
+    AlreadyExists(String),
+    PoisonError(StoreWritePoisonError<'a>),
+}
+
+impl<'a> From<StoreWritePoisonError<'a>> for VideoWriteError<'a> {
+    fn from(err: StoreWritePoisonError<'a>) -> Self {
+        Self::PoisonError(err)
+    }
+}
+
+impl fmt::Display for VideoWriteError<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ProgramNotFound(key) => write!(f, "Program not found (id = {})", key),
+            Self::AlreadyExists(s) => write!(f, "Provider ID `{}` already exists", s),
             Self::PoisonError(e) => write!(f, "{}", e),
         }
     }
@@ -120,6 +143,31 @@ impl ProgramStore {
             self.persist(&store);
         }
         Ok((sp, notice))
+    }
+
+    pub fn create_video<'a>(
+        &'a self,
+        key: &'a ProgramKey,
+        video_header: VideoHeader,
+    ) -> Result<Arc<StoredVideo>, VideoWriteError<'a>> {
+        let mut store = self.store.write()?;
+        let mut program = match store.get(key) {
+            Some(p) => (**p).clone(),
+            None => return Err(VideoWriteError::ProgramNotFound(key)),
+        };
+
+        for video in program.videos() {
+            if video.provider_id == video_header.provider_id {
+                return Err(VideoWriteError::AlreadyExists(video_header.provider_id.clone()));
+            }
+        }
+
+        let video = Arc::new(StoredVideo::from_exchanged(&program, video_header));
+        program.videos_mut().push(video.clone());
+        store.insert(key.clone(), Arc::new(program));
+        self.persist(&store);
+
+        Ok(video)
     }
 
     pub fn update_program_metadata<'a>(

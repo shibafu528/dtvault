@@ -1,7 +1,7 @@
 mod storage;
 
 pub use self::storage::*;
-use crate::program::{validate_program_id, ProgramKey, ProgramStore};
+use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageService as VideoStorageServiceTrait;
 use dtvault_types::shibafu528::dtvault::storage::{CreateVideoRequest, CreateVideoResponse};
@@ -72,11 +72,26 @@ impl VideoStorageServiceTrait for VideoStorageService {
             None => Err(Status::invalid_argument("Empty stream")),
         }?;
 
-        // TODO: videoを生成して、storage内でcreateできるようにする
-        // let writer = self.storage.create(&program);
-        let tmp = tempfile::NamedTempFile::new().map_err(map_io_error)?;
-        let tmpfile = File::create(tmp.path()).await.map_err(map_io_error)?;
-        let mut tmp_writer = BufWriter::new(tmpfile);
+        let program_key = ProgramKey::from_stored_program(&program);
+        // TODO: 後続処理で失敗したらvideoを消す必要がある
+        let video = match self.store.create_video(&program_key, header) {
+            Ok(video) => Ok(video),
+            Err(e) => match e {
+                VideoWriteError::ProgramNotFound(e) => {
+                    Err(Status::not_found(format!("Program not found (id = {})", program_key)))
+                }
+                VideoWriteError::AlreadyExists(s) => {
+                    Err(Status::invalid_argument(format!("Provider ID `{}` already exists", s)))
+                }
+                VideoWriteError::PoisonError(e) => Err(Status::aborted(format!("{}", e))),
+            },
+        }?;
+        let writer = match self.storage.create(&program, &video).await {
+            Ok(w) => Ok(w),
+            Err(e) => Err(Status::aborted(format!("{}", e))),
+        }?;
+
+        let mut buf = BufWriter::new(writer);
         let mut wrote_length: u64 = 0;
         while let Some(msg) = stream.next().await {
             let msg = msg?;
@@ -90,7 +105,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
                     if data.offset < wrote_length {
                         return Err(Status::invalid_argument("Invalid offset: already received"));
                     }
-                    tmp_writer.write_all(&data.payload).await.map_err(map_io_error)?;
+                    buf.write_all(&data.payload).await.map_err(map_io_error)?;
                     wrote_length += data.payload.len() as u64;
                 }
                 _ => return Err(Status::invalid_argument("Invalid part: need datagram")),
@@ -98,6 +113,8 @@ impl VideoStorageServiceTrait for VideoStorageService {
         }
         println!("CreateVideo finish");
 
-        Ok(Response::new(CreateVideoResponse { video: None }))
+        Ok(Response::new(CreateVideoResponse {
+            video: Some(video.exchangeable()),
+        }))
     }
 }

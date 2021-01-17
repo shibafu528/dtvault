@@ -2,11 +2,13 @@ use crate::program::prost_convert::ToDurationExt;
 use dtvault_types::shibafu528::dtvault as types;
 use dtvault_types::shibafu528::dtvault::central::persist_program::ExtendedEvent as PersistExtendedEvent;
 use dtvault_types::shibafu528::dtvault::central::{PersistChannel, PersistProgram, PersistService, PersistVideo};
+use dtvault_types::shibafu528::dtvault::storage::create_video_request::Header as VideoHeader;
 use mime::Mime;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -16,6 +18,8 @@ pub enum MessageConversionError {
     MissingRequiredField(String),
     #[error(transparent)]
     ParseUuidError(#[from] uuid::Error),
+    #[error(transparent)]
+    ParseMimeError(#[from] mime::FromStrError),
 }
 
 pub trait Persistence<T> {
@@ -155,7 +159,7 @@ pub struct Program {
     #[serde(skip)]
     metadata: HashMap<String, String>,
     #[serde(skip)]
-    videos: Vec<Video>,
+    videos: Vec<Arc<Video>>,
 }
 
 fn serialize_uuid<S>(value: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
@@ -224,6 +228,14 @@ impl Program {
     pub fn metadata_mut(&mut self) -> &mut HashMap<String, String> {
         &mut self.metadata
     }
+
+    pub fn videos(&self) -> &Vec<Arc<Video>> {
+        &self.videos
+    }
+
+    pub fn videos_mut(&mut self) -> &mut Vec<Arc<Video>> {
+        &mut self.videos
+    }
 }
 
 impl Persistence<PersistProgram> for Program {
@@ -257,7 +269,7 @@ impl Persistence<PersistProgram> for Program {
             videos: persisted
                 .videos
                 .into_iter()
-                .map(|v| Video::from_persisted(v).unwrap())
+                .map(|v| Arc::new(Video::from_persisted(v).unwrap()))
                 .collect(),
         })
     }
@@ -328,22 +340,92 @@ impl Persistence<PersistExtendedEvent> for ExtendedEvent {
 #[derive(Clone)]
 pub struct Video {
     pub id: Uuid,
-    provider_id: String,
+    pub provider_id: String,
     program_id: Uuid,
     total_length: u64,
     pub file_name: String,
     original_file_name: String,
     mime_type: Mime,
+    // TODO: 複数ストレージちゃんとやる時には考え直す
     storage_id: Uuid,
     storage_prefix: String,
 }
 
+impl Video {
+    pub fn from_exchanged(program: &Program, video_header: VideoHeader) -> Self {
+        Video {
+            id: Uuid::new_v4(),
+            provider_id: video_header.provider_id.clone(),
+            program_id: program.id,
+            total_length: video_header.total_length,
+            file_name: video_header.file_name.clone(),
+            original_file_name: video_header.file_name.clone(),
+            mime_type: video_header.mime_type.parse().unwrap(),
+            storage_id: Uuid::nil(),
+            storage_prefix: "".to_string(),
+        }
+    }
+
+    pub fn exchangeable(&self) -> types::Video {
+        types::Video {
+            video_id: self
+                .id
+                .to_hyphenated()
+                .encode_lower(&mut Uuid::encode_buffer())
+                .to_string(),
+            provider_id: self.provider_id.clone(),
+            program_id: None, // TODO: これどうしよ
+            total_length: self.total_length,
+            file_name: self.file_name.clone(),
+            mime_type: self.mime_type.essence_str().to_string(),
+            storage_id: self
+                .storage_id
+                .to_hyphenated()
+                .encode_lower(&mut Uuid::encode_buffer())
+                .to_string(),
+            prefix: self.storage_prefix.clone(),
+        }
+    }
+}
+
 impl Persistence<PersistVideo> for Video {
-    fn from_persisted(_persisted: PersistVideo) -> Result<Self, MessageConversionError> {
-        unimplemented!()
+    fn from_persisted(persisted: PersistVideo) -> Result<Self, MessageConversionError> {
+        Ok(Video {
+            id: Uuid::parse_str(&persisted.video_id)?,
+            provider_id: persisted.provider_id,
+            program_id: Uuid::parse_str(&persisted.program_id)?,
+            total_length: persisted.total_length,
+            file_name: persisted.file_name,
+            original_file_name: persisted.original_file_name,
+            mime_type: persisted.mime_type.parse()?,
+            storage_id: Uuid::parse_str(&persisted.storage_id)?,
+            storage_prefix: persisted.storage_prefix,
+        })
     }
 
     fn persist(&self) -> PersistVideo {
-        PersistVideo {}
+        PersistVideo {
+            video_id: self
+                .id
+                .to_hyphenated()
+                .encode_lower(&mut Uuid::encode_buffer())
+                .to_string(),
+            provider_id: self.provider_id.clone(),
+            program_id: self
+                .program_id
+                .to_hyphenated()
+                .encode_lower(&mut Uuid::encode_buffer())
+                .to_string(),
+            total_length: self.total_length,
+            file_name: self.file_name.clone(),
+            original_file_name: self.original_file_name.clone(),
+            mime_type: self.mime_type.essence_str().to_string(),
+            storage_id: self
+                .storage_id
+                .to_hyphenated()
+                .encode_lower(&mut Uuid::encode_buffer())
+                .to_string(),
+            storage_prefix: self.storage_prefix.clone(),
+        }
     }
 }

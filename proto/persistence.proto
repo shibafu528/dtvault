@@ -48,5 +48,13 @@ message PersistService {
 }
 
 message PersistVideo {
-    // TODO
+    string video_id = 1;
+    string provider_id = 2;
+    string program_id = 3;
+    uint64 total_length = 4;
+    string file_name = 5;
+    string original_file_name = 6;
+    string mime_type = 7;
+    string storage_id = 8;
+    string storage_prefix = 9;
 }
