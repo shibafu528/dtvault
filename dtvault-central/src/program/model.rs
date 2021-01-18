@@ -236,6 +236,15 @@ impl Program {
     pub fn videos_mut(&mut self) -> &mut Vec<Arc<Video>> {
         &mut self.videos
     }
+
+    pub fn exists_video(&self, provider_id: &str) -> bool {
+        for video in &self.videos {
+            if video.provider_id == provider_id {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 impl Persistence<PersistProgram> for Program {

@@ -3,7 +3,6 @@ use crate::program::{ProgramKey, Video as StoredVideo};
 use crate::Config;
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as ResponseStatus;
 use dtvault_types::shibafu528::dtvault::central::PersistProgram;
-use dtvault_types::shibafu528::dtvault::storage::create_video_request::Header as VideoHeader;
 use dtvault_types::shibafu528::dtvault::Program;
 use fs2::FileExt;
 use prost::bytes::Buf;
@@ -148,7 +147,7 @@ impl ProgramStore {
     pub fn create_video<'a>(
         &'a self,
         key: &'a ProgramKey,
-        video_header: VideoHeader,
+        video: StoredVideo,
     ) -> Result<Arc<StoredVideo>, VideoWriteError<'a>> {
         let mut store = self.store.write()?;
         let mut program = match store.get(key) {
@@ -156,13 +155,11 @@ impl ProgramStore {
             None => return Err(VideoWriteError::ProgramNotFound(key)),
         };
 
-        for video in program.videos() {
-            if video.provider_id == video_header.provider_id {
-                return Err(VideoWriteError::AlreadyExists(video_header.provider_id.clone()));
-            }
+        if program.exists_video(&video.provider_id) {
+            return Err(VideoWriteError::AlreadyExists(video.provider_id.clone()));
         }
 
-        let video = Arc::new(StoredVideo::from_exchanged(&program, video_header));
+        let video = Arc::new(video);
         program.videos_mut().push(video.clone());
         store.insert(key.clone(), Arc::new(program));
         self.persist(&store);

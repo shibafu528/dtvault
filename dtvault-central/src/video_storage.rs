@@ -1,7 +1,7 @@
 mod storage;
 
 pub use self::storage::*;
-use crate::program::{validate_program_id, ProgramKey, ProgramStore, VideoWriteError};
+use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageService as VideoStorageServiceTrait;
 use dtvault_types::shibafu528::dtvault::storage::{CreateVideoRequest, CreateVideoResponse};
@@ -71,20 +71,13 @@ impl VideoStorageServiceTrait for VideoStorageService {
             None => Err(Status::invalid_argument("Empty stream")),
         }?;
 
-        let program_key = ProgramKey::from_stored_program(&program);
-        // TODO: 後続処理で失敗したらvideoを消す必要がある
-        let video = match self.store.create_video(&program_key, header) {
-            Ok(video) => Ok(video),
-            Err(e) => match e {
-                VideoWriteError::ProgramNotFound(e) => {
-                    Err(Status::not_found(format!("Program not found (id = {})", e)))
-                }
-                VideoWriteError::AlreadyExists(s) => {
-                    Err(Status::invalid_argument(format!("Provider ID `{}` already exists", s)))
-                }
-                VideoWriteError::PoisonError(e) => Err(Status::aborted(format!("{}", e))),
-            },
-        }?;
+        if program.exists_video(&header.provider_id) {
+            return Err(Status::invalid_argument(format!(
+                "Provider ID `{}` already exists",
+                header.provider_id
+            )));
+        }
+        let video = Video::from_exchanged(&program, header);
         let writer = match self.storage.create(&program, &video).await {
             Ok(w) => Ok(w),
             Err(e) => Err(Status::aborted(format!("{}", e))),
@@ -110,6 +103,21 @@ impl VideoStorageServiceTrait for VideoStorageService {
                 _ => return Err(Status::invalid_argument("Invalid part: need datagram")),
             }
         }
+
+        let program_key = ProgramKey::from_stored_program(&program);
+        let video = match self.store.create_video(&program_key, video) {
+            Ok(video) => Ok(video),
+            Err(e) => match e {
+                VideoWriteError::ProgramNotFound(e) => {
+                    Err(Status::not_found(format!("Program not found (id = {})", e)))
+                }
+                VideoWriteError::AlreadyExists(s) => {
+                    Err(Status::invalid_argument(format!("Provider ID `{}` already exists", s)))
+                }
+                VideoWriteError::PoisonError(e) => Err(Status::aborted(format!("{}", e))),
+            },
+        }?;
+
         println!("CreateVideo finish");
 
         Ok(Response::new(CreateVideoResponse {
