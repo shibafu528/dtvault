@@ -1,12 +1,11 @@
 mod storage;
 
 pub use self::storage::*;
-use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
+use crate::program::{validate_program_id, ProgramKey, ProgramStore, VideoWriteError};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageService as VideoStorageServiceTrait;
 use dtvault_types::shibafu528::dtvault::storage::{CreateVideoRequest, CreateVideoResponse};
 use std::sync::Arc;
-use tokio::fs::File;
 use tokio::io::BufWriter;
 use tokio::prelude::*;
 use tokio::stream::StreamExt;
@@ -78,7 +77,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
             Ok(video) => Ok(video),
             Err(e) => match e {
                 VideoWriteError::ProgramNotFound(e) => {
-                    Err(Status::not_found(format!("Program not found (id = {})", program_key)))
+                    Err(Status::not_found(format!("Program not found (id = {})", e)))
                 }
                 VideoWriteError::AlreadyExists(s) => {
                     Err(Status::invalid_argument(format!("Provider ID `{}` already exists", s)))

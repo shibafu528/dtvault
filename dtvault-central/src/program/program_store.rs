@@ -4,7 +4,7 @@ use crate::Config;
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as ResponseStatus;
 use dtvault_types::shibafu528::dtvault::central::PersistProgram;
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Header as VideoHeader;
-use dtvault_types::shibafu528::dtvault::{Program, Video};
+use dtvault_types::shibafu528::dtvault::Program;
 use fs2::FileExt;
 use prost::bytes::Buf;
 use prost::Message;
