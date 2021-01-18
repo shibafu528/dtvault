@@ -118,6 +118,9 @@ impl VideoStorageServiceTrait for VideoStorageService {
             },
         }?;
 
+        if let Err(e) = buf.into_inner().finish() {
+            eprintln!("Error in StorageWriter.finish: {}", e);
+        }
         println!("CreateVideo finish");
 
         Ok(Response::new(CreateVideoResponse {

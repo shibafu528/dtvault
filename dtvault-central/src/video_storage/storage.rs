@@ -1,6 +1,6 @@
 use crate::program::{Program, Video};
 use fs2::FileExt;
-use pin_project::pin_project;
+use pin_project::{pin_project, pinned_drop};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -10,10 +10,15 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 #[tonic::async_trait]
-pub trait Storage<T: AsyncWrite> {
+pub trait Storage<T: AsyncWrite + StorageWriter> {
     fn is_available(&self) -> bool;
     fn find_bin(&self);
     async fn create(&self, program: &Program, video: &Video) -> Result<T, CreateError>;
+}
+
+pub trait StorageWriter {
+    fn finish(&mut self) -> Result<(), std::io::Error>;
+    fn abort(&mut self) -> Result<(), std::io::Error>;
 }
 
 pub struct FileSystem {
@@ -135,7 +140,7 @@ impl Storage<FSWriter> for FileSystem {
             }
         };
 
-        Ok(FSWriter { file, lock })
+        Ok(FSWriter::new(file, video_dir, lock))
     }
 }
 
@@ -185,11 +190,51 @@ impl Drop for FSSharedLock {
     }
 }
 
-#[pin_project]
+#[pin_project(PinnedDrop)]
 pub struct FSWriter {
     #[pin]
     file: File,
+    parent: PathBuf,
     lock: FSSharedLock,
+    finished: bool,
+}
+
+impl FSWriter {
+    fn new(file: File, parent: PathBuf, lock: FSSharedLock) -> Self {
+        FSWriter {
+            file,
+            parent,
+            lock,
+            finished: false,
+        }
+    }
+}
+
+#[pinned_drop]
+impl PinnedDrop for FSWriter {
+    fn drop(self: Pin<&mut Self>) {
+        if !self.finished {
+            let _ = std::fs::remove_dir_all(&self.parent);
+        }
+    }
+}
+
+impl StorageWriter for FSWriter {
+    fn finish(&mut self) -> Result<(), std::io::Error> {
+        if !self.finished {
+            self.lock.unlock()?;
+            self.finished = true;
+        }
+        Ok(())
+    }
+
+    fn abort(&mut self) -> Result<(), std::io::Error> {
+        if !self.finished {
+            std::fs::remove_dir_all(&self.parent)?;
+            self.finished = true;
+        }
+        Ok(())
+    }
 }
 
 impl AsyncWrite for FSWriter {
