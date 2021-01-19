@@ -1,12 +1,12 @@
 use crate::program::{Program, Video};
-use tokio::io::AsyncWrite;
+use tokio::io::{AsyncRead, AsyncWrite};
 
 #[tonic::async_trait]
-pub trait Storage<T: AsyncWrite + StorageWriter> {
+pub trait Storage<R: AsyncRead, W: AsyncWrite + StorageWriter> {
     fn is_available(&self) -> bool;
     async fn find_header(&self, video_id: &str) -> Result<Video, FindStatusError>;
-    fn find_bin(&self);
-    async fn create(&self, program: &Program, video: &Video) -> Result<T, CreateError>;
+    async fn find_bin(&self, video_id: &str) -> Result<R, FindStatusError>;
+    async fn create(&self, program: &Program, video: &Video) -> Result<W, CreateError>;
 }
 
 pub trait StorageWriter {

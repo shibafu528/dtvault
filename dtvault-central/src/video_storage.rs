@@ -5,6 +5,7 @@ pub use self::filesystem::*;
 pub use self::storage::*;
 use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
+use dtvault_types::shibafu528::dtvault::storage::get_video_response::Datagram as GetVideoResponseDatagram;
 use dtvault_types::shibafu528::dtvault::storage::get_video_response::Part as GetVideoResponsePart;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageService as VideoStorageServiceTrait;
 use dtvault_types::shibafu528::dtvault::storage::{
@@ -142,19 +143,22 @@ impl VideoStorageServiceTrait for VideoStorageService {
             return Err(Status::invalid_argument("Invalid value: video_id"));
         }
 
-        let video = match self.storage.find_header(&msg.video_id).await {
-            Ok(v) => v,
-            Err(e) => {
-                return match e {
-                    FindStatusError::Unavailable(e) => Err(Status::unavailable(format!("{}", e))),
-                    FindStatusError::NotFound => Err(Status::not_found("Video not found")),
-                    FindStatusError::IoError(e) => Err(Status::aborted(format!("{}", e))),
-                    FindStatusError::ReadError(e) => Err(Status::aborted(format!("{}", e))),
-                }
-            }
+        let handle_find_status_error = |e| match e {
+            FindStatusError::Unavailable(e) => Err(Status::unavailable(format!("{}", e))),
+            FindStatusError::NotFound => Err(Status::not_found("Video not found")),
+            FindStatusError::IoError(e) => Err(Status::aborted(format!("{}", e))),
+            FindStatusError::ReadError(e) => Err(Status::aborted(format!("{}", e))),
         };
 
-        // TODO: read binary
+        let video = match self.storage.find_header(&msg.video_id).await {
+            Ok(v) => v,
+            Err(e) => return handle_find_status_error(e),
+        };
+
+        let stream = match self.storage.find_bin(&msg.video_id).await {
+            Ok(s) => s,
+            Err(e) => return handle_find_status_error(e),
+        };
 
         let (mut tx, rx) = tokio::sync::mpsc::channel(1);
         tokio::spawn(async move {
@@ -165,6 +169,43 @@ impl VideoStorageServiceTrait for VideoStorageService {
                 eprintln!("[[Error in task!]] {}", e);
                 return;
             };
+
+            let mut reader = tokio::io::BufReader::new(stream);
+            let mut sent: usize = 0;
+            loop {
+                let mut buffer = vec![0; 1024 * 1024];
+                match reader.read(&mut buffer).await {
+                    Ok(size) => match size {
+                        0 => break,
+                        n => {
+                            buffer.resize(n, 0);
+                            let datagram = GetVideoResponseDatagram {
+                                offset: sent as u64,
+                                payload: buffer,
+                            };
+                            let datagram_req = GetVideoResponse {
+                                part: Some(GetVideoResponsePart::Datagram(datagram)),
+                            };
+                            if let Err(e) = tx.send(Ok(datagram_req)).await {
+                                eprintln!("[[Error in task!]] {}", e);
+                                return;
+                            };
+
+                            sent += n;
+                        }
+                    },
+                    Err(e) => {
+                        eprintln!("[[Error in task!]] {}", e);
+                        if let Err(e) = tx
+                            .send(Err(Status::aborted(format!("Error while reading stream: {}", e))))
+                            .await
+                        {
+                            eprintln!("[[Error in task!]] {}", e);
+                        }
+                        return;
+                    }
+                };
+            }
         });
 
         Ok(Response::new(Box::pin(rx)))

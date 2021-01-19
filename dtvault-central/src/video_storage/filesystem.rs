@@ -46,6 +46,19 @@ impl FileSystem {
         Ok(FSSharedLock::new(file))
     }
 
+    async fn find_header_internal(&self, video_id: &str) -> Result<(Video, PathBuf), FindStatusError> {
+        let video_dir = match self.find_video_dir(video_id).await {
+            Some(v) => v,
+            None => return Err(FindStatusError::NotFound),
+        };
+
+        let path = video_dir.as_path().join(FILE_VIDEO);
+        let json = tokio::fs::read_to_string(&path).await?;
+        let video = serde_json::from_str(&json).map_err(|e| FindStatusError::ReadError(format!("{}", e)))?;
+
+        Ok((video, video_dir))
+    }
+
     // TODO: Prefix support
     async fn find_video_dir(&self, video_id: &str) -> Option<PathBuf> {
         let video_dir = PathBuf::from(&self.root_dir).join(video_id);
@@ -120,7 +133,7 @@ impl FileSystem {
 }
 
 #[tonic::async_trait]
-impl Storage<FSWriter> for FileSystem {
+impl Storage<tokio::fs::File, FSWriter> for FileSystem {
     fn is_available(&self) -> bool {
         if self.lock_file_path.exists() {
             return true;
@@ -135,22 +148,19 @@ impl Storage<FSWriter> for FileSystem {
 
     async fn find_header(&self, video_id: &str) -> Result<Video, FindStatusError> {
         let _lock = self.take_shared_lock()?;
-
-        let video_dir = match self.find_video_dir(video_id).await {
-            Some(v) => v,
-            None => return Err(FindStatusError::NotFound),
-        };
-
-        let path = video_dir.as_path().join(FILE_VIDEO);
-        let json = tokio::fs::read_to_string(&path).await?;
-        let video = serde_json::from_str(&json).map_err(|e| FindStatusError::ReadError(format!("{}", e)))?;
-
+        let (video, _) = self.find_header_internal(video_id).await?;
         Ok(video)
     }
 
-    fn find_bin(&self) {
-        // TODO: find ts, mp4, orelse and return stream
-        unimplemented!()
+    // TODO: FSReaderみたいなstructを返すようにして、SharedLockを維持する
+    async fn find_bin(&self, video_id: &str) -> Result<tokio::fs::File, FindStatusError> {
+        let _lock = self.take_shared_lock()?;
+
+        let (video, video_dir) = self.find_header_internal(video_id).await?;
+        let path = video_dir.as_path().join(&video.file_name);
+        let file = tokio::fs::File::open(path).await?;
+
+        Ok(file)
     }
 
     async fn create(&self, program: &Program, video: &Video) -> Result<FSWriter, CreateError> {
