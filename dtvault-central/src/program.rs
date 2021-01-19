@@ -170,4 +170,30 @@ impl ProgramServiceTrait for ProgramService {
         };
         response
     }
+
+    async fn list_videos_by_program(
+        &self,
+        request: Request<ListVideosByProgramRequest>,
+    ) -> Result<Response<ListVideosByProgramResponse>, Status> {
+        let msg = request.into_inner();
+
+        let program_id = match msg.program_id {
+            Some(program_id) => match validate_program_id(&program_id) {
+                Ok(_) => Ok(program_id),
+                Err(msg) => Err(Status::invalid_argument(format!("Violation in program_id => {}", msg))),
+            },
+            None => Err(Status::invalid_argument("Missing value: program_id")),
+        }?;
+
+        let program_key = ProgramKey::from_program_id(&program_id);
+        match self.store.find(&program_key) {
+            Ok(result) => match result {
+                Some(sp) => Ok(Response::new(ListVideosByProgramResponse {
+                    videos: sp.videos().iter().map(|sp| sp.exchangeable()).collect(),
+                })),
+                None => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
+            },
+            Err(e) => Err(Status::aborted(format!("{}", e))),
+        }
+    }
 }

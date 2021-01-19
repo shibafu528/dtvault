@@ -3,6 +3,7 @@ syntax = "proto3";
 package shibafu528.dtvault.central;
 
 import "program.proto";
+import "video.proto";
 
 service ProgramService {
     rpc GetProgram (GetProgramRequest) returns (GetProgramResponse);
@@ -10,6 +11,7 @@ service ProgramService {
     rpc CreateProgram (CreateProgramRequest) returns (CreateProgramResponse);
     rpc GetProgramMetadata (GetProgramMetadataRequest) returns (GetProgramMetadataResponse);
     rpc UpdateProgramMetadata (UpdateProgramMetadataRequest) returns (UpdateProgramMetadataResponse);
+    rpc ListVideosByProgram (ListVideosByProgramRequest) returns (ListVideosByProgramResponse);
 }
 
 message GetProgramRequest {
@@ -58,4 +60,12 @@ message UpdateProgramMetadataRequest {
 }
 
 message UpdateProgramMetadataResponse {
+}
+
+message ListVideosByProgramRequest {
+    ProgramIdentity program_id = 1;
+}
+
+message ListVideosByProgramResponse {
+    repeated Video videos = 2;
 }
