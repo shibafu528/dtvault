@@ -9,6 +9,10 @@ use tokio::fs::File;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use uuid::Uuid;
 
+const FILE_PROGRAM: &str = "program.json";
+const FILE_PROGRAM_METADATA: &str = "metadata.json";
+const FILE_VIDEO: &str = "video.json";
+
 pub struct FileSystem {
     root_dir: String,
     lock_file_path: PathBuf,
@@ -74,7 +78,7 @@ impl FileSystem {
             Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
         };
 
-        match tokio::fs::File::create(video_dir.join("program.json")).await {
+        match tokio::fs::File::create(video_dir.join(FILE_PROGRAM)).await {
             Ok(mut f) => {
                 if let Err(e) = f.write_all(program_json.as_bytes()).await {
                     return Err(CreateError::MetadataBackupFailed(e.to_string()));
@@ -88,7 +92,7 @@ impl FileSystem {
             Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
         };
 
-        match tokio::fs::File::create(video_dir.join("metadata.json")).await {
+        match tokio::fs::File::create(video_dir.join(FILE_PROGRAM_METADATA)).await {
             Ok(mut f) => {
                 if let Err(e) = f.write_all(metadata_json.as_bytes()).await {
                     return Err(CreateError::MetadataBackupFailed(e.to_string()));
@@ -102,7 +106,7 @@ impl FileSystem {
             Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
         };
 
-        match tokio::fs::File::create(video_dir.join("video.json")).await {
+        match tokio::fs::File::create(video_dir.join(FILE_VIDEO)).await {
             Ok(mut f) => {
                 if let Err(e) = f.write_all(video_json.as_bytes()).await {
                     return Err(CreateError::MetadataBackupFailed(e.to_string()));
@@ -137,7 +141,7 @@ impl Storage<FSWriter> for FileSystem {
             None => return Err(FindStatusError::NotFound),
         };
 
-        let path = video_dir.as_path().join("video.json");
+        let path = video_dir.as_path().join(FILE_VIDEO);
         let json = tokio::fs::read_to_string(&path).await?;
         let video = serde_json::from_str(&json).map_err(|e| FindStatusError::ReadError(format!("{}", e)))?;
 
