@@ -74,7 +74,7 @@ impl FileSystem {
         Ok(video_dir)
     }
 
-    async fn store_metadata(&self, video_dir: &PathBuf, program: &Program) -> Result<(), CreateError> {
+    async fn store_metadata(&self, video_dir: &PathBuf, program: &Program, video: &Video) -> Result<(), CreateError> {
         let program_json = match serde_json::to_string_pretty(&program) {
             Ok(json) => json,
             Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
@@ -97,6 +97,20 @@ impl FileSystem {
         match tokio::fs::File::create(video_dir.join("metadata.json")).await {
             Ok(mut f) => {
                 if let Err(e) = f.write_all(metadata_json.as_bytes()).await {
+                    return Err(CreateError::MetadataBackupFailed(e.to_string()));
+                }
+            }
+            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
+        }
+
+        let video_json = match serde_json::to_string_pretty(video) {
+            Ok(json) => json,
+            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
+        };
+
+        match tokio::fs::File::create(video_dir.join("video.json")).await {
+            Ok(mut f) => {
+                if let Err(e) = f.write_all(video_json.as_bytes()).await {
                     return Err(CreateError::MetadataBackupFailed(e.to_string()));
                 }
             }
@@ -130,7 +144,7 @@ impl Storage<FSWriter> for FileSystem {
         let lock = self.take_shared_lock()?;
 
         let video_dir = self.create_video_dir(video).await?;
-        self.store_metadata(&video_dir, program).await?;
+        self.store_metadata(&video_dir, program, video).await?;
 
         let path = video_dir.as_path().join(&video.file_name);
         let file = match tokio::fs::File::create(path).await {

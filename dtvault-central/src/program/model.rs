@@ -169,6 +169,13 @@ where
     serializer.serialize_str(value.to_hyphenated().encode_lower(&mut Uuid::encode_buffer()))
 }
 
+fn serialize_mime<S>(value: &Mime, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(value.essence_str())
+}
+
 impl Program {
     pub fn from_exchanged(program: types::Program) -> Result<Self, MessageConversionError> {
         let start_at = program
@@ -346,16 +353,20 @@ impl Persistence<PersistExtendedEvent> for ExtendedEvent {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize)]
 pub struct Video {
+    #[serde(serialize_with = "serialize_uuid")]
     pub id: Uuid,
     pub provider_id: String,
+    #[serde(serialize_with = "serialize_uuid")]
     program_id: Uuid,
     total_length: u64,
     pub file_name: String,
     original_file_name: String,
+    #[serde(serialize_with = "serialize_mime")]
     mime_type: Mime,
     // TODO: 複数ストレージちゃんとやる時には考え直す
+    #[serde(serialize_with = "serialize_uuid")]
     storage_id: Uuid,
     storage_prefix: String,
 }
