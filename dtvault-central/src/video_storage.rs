@@ -1,5 +1,7 @@
+mod filesystem;
 mod storage;
 
+pub use self::filesystem::*;
 pub use self::storage::*;
 use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
