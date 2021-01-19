@@ -3,12 +3,16 @@ mod storage;
 pub use self::storage::*;
 use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
+use dtvault_types::shibafu528::dtvault::storage::get_video_response::Part as GetVideoResponsePart;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageService as VideoStorageServiceTrait;
-use dtvault_types::shibafu528::dtvault::storage::{CreateVideoRequest, CreateVideoResponse};
+use dtvault_types::shibafu528::dtvault::storage::{
+    CreateVideoRequest, CreateVideoResponse, GetVideoRequest, GetVideoResponse,
+};
+use std::pin::Pin;
 use std::sync::Arc;
 use tokio::io::BufWriter;
 use tokio::prelude::*;
-use tokio::stream::StreamExt;
+use tokio::stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
 fn map_io_error(e: tokio::io::Error) -> Status {
@@ -126,5 +130,41 @@ impl VideoStorageServiceTrait for VideoStorageService {
         Ok(Response::new(CreateVideoResponse {
             video: Some(video.exchangeable()),
         }))
+    }
+
+    type GetVideoStream = Pin<Box<dyn Stream<Item = Result<GetVideoResponse, Status>> + Send + Sync + 'static>>;
+
+    async fn get_video(&self, request: Request<GetVideoRequest>) -> Result<Response<Self::GetVideoStream>, Status> {
+        let msg = request.into_inner();
+        if msg.video_id.is_empty() {
+            return Err(Status::invalid_argument("Invalid value: video_id"));
+        }
+
+        let video = match self.storage.find_header(&msg.video_id).await {
+            Ok(v) => v,
+            Err(e) => {
+                return match e {
+                    FindStatusError::Unavailable(e) => Err(Status::unavailable(format!("{}", e))),
+                    FindStatusError::NotFound => Err(Status::not_found("Video not found")),
+                    FindStatusError::IoError(e) => Err(Status::aborted(format!("{}", e))),
+                    FindStatusError::ReadError(e) => Err(Status::aborted(format!("{}", e))),
+                }
+            }
+        };
+
+        // TODO: read binary
+
+        let (mut tx, rx) = tokio::sync::mpsc::channel(1);
+        tokio::spawn(async move {
+            let header_res = GetVideoResponse {
+                part: Some(GetVideoResponsePart::Header(video.exchangeable())),
+            };
+            if let Err(e) = tx.send(Ok(header_res)).await {
+                eprintln!("[[Error in task!]] {}", e);
+                return;
+            };
+        });
+
+        Ok(Response::new(Box::pin(rx)))
     }
 }

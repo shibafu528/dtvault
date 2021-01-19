@@ -7,6 +7,7 @@ import "video.proto";
 
 service VideoStorageService {
     rpc CreateVideo (stream CreateVideoRequest) returns (CreateVideoResponse);
+    rpc GetVideo (GetVideoRequest) returns (stream GetVideoResponse);
 }
 
 message CreateVideoRequest {
@@ -29,4 +30,19 @@ message CreateVideoRequest {
 
 message CreateVideoResponse {
     Video video = 1;
+}
+
+message GetVideoRequest {
+    string video_id = 1;
+}
+
+message GetVideoResponse {
+    message Datagram {
+        uint64 offset = 1;
+        bytes payload = 2;
+    }
+    oneof part {
+        Video header = 1;
+        Datagram datagram = 2;
+    }
 }

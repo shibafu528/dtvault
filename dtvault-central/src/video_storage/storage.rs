@@ -12,6 +12,7 @@ use uuid::Uuid;
 #[tonic::async_trait]
 pub trait Storage<T: AsyncWrite + StorageWriter> {
     fn is_available(&self) -> bool;
+    async fn find_header(&self, video_id: &str) -> Result<Video, FindStatusError>;
     fn find_bin(&self);
     async fn create(&self, program: &Program, video: &Video) -> Result<T, CreateError>;
 }
@@ -52,6 +53,12 @@ impl FileSystem {
         }
 
         Ok(FSSharedLock::new(file))
+    }
+
+    // TODO: Prefix support
+    async fn find_video_dir(&self, video_id: &str) -> Option<PathBuf> {
+        let video_dir = PathBuf::from(&self.root_dir).join(video_id);
+        return if video_dir.is_dir() { Some(video_dir) } else { None };
     }
 
     async fn create_video_dir(&self, video: &Video) -> Result<PathBuf, CreateError> {
@@ -135,6 +142,21 @@ impl Storage<FSWriter> for FileSystem {
         }
     }
 
+    async fn find_header(&self, video_id: &str) -> Result<Video, FindStatusError> {
+        let _lock = self.take_shared_lock()?;
+
+        let video_dir = match self.find_video_dir(video_id).await {
+            Some(v) => v,
+            None => return Err(FindStatusError::NotFound),
+        };
+
+        let path = video_dir.as_path().join("video.json");
+        let json = tokio::fs::read_to_string(&path).await?;
+        let video = serde_json::from_str(&json).map_err(|e| FindStatusError::ReadError(format!("{}", e)))?;
+
+        Ok(video)
+    }
+
     fn find_bin(&self) {
         // TODO: find ts, mp4, orelse and return stream
         unimplemented!()
@@ -173,6 +195,18 @@ pub enum CreateError {
     // TODO: MetadataBackupFailedは型を独立させたほうが取り回しやすいかも
     #[error("Metadata backup failed: {0}")]
     MetadataBackupFailed(String),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum FindStatusError {
+    #[error(transparent)]
+    Unavailable(#[from] UnavailableError),
+    #[error("Video not found")]
+    NotFound,
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+    #[error("Error reading status: {0}")]
+    ReadError(String),
 }
 
 pub struct FSSharedLock {
