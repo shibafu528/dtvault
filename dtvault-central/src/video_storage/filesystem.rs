@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::fs::File;
-use tokio::io::{AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use uuid::Uuid;
 
 const FILE_PROGRAM: &str = "program.json";
@@ -133,7 +133,7 @@ impl FileSystem {
 }
 
 #[tonic::async_trait]
-impl Storage<tokio::fs::File, FSWriter> for FileSystem {
+impl Storage<FSReader, FSWriter> for FileSystem {
     fn is_available(&self) -> bool {
         if self.lock_file_path.exists() {
             return true;
@@ -152,15 +152,14 @@ impl Storage<tokio::fs::File, FSWriter> for FileSystem {
         Ok(video)
     }
 
-    // TODO: FSReaderみたいなstructを返すようにして、SharedLockを維持する
-    async fn find_bin(&self, video_id: &str) -> Result<tokio::fs::File, FindStatusError> {
-        let _lock = self.take_shared_lock()?;
+    async fn find_bin(&self, video_id: &str) -> Result<FSReader, FindStatusError> {
+        let lock = self.take_shared_lock()?;
 
         let (video, video_dir) = self.find_header_internal(video_id).await?;
         let path = video_dir.as_path().join(&video.file_name);
         let file = tokio::fs::File::open(path).await?;
 
-        Ok(file)
+        Ok(FSReader::new(file, lock))
     }
 
     async fn create(&self, program: &Program, video: &Video) -> Result<FSWriter, CreateError> {
@@ -268,5 +267,24 @@ impl AsyncWrite for FSWriter {
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
         AsyncWrite::poll_shutdown(self.project().file, cx)
+    }
+}
+
+#[pin_project]
+pub struct FSReader {
+    #[pin]
+    file: File,
+    lock: FSSharedLock,
+}
+
+impl FSReader {
+    fn new(file: File, lock: FSSharedLock) -> Self {
+        FSReader { file, lock }
+    }
+}
+
+impl AsyncRead for FSReader {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize, std::io::Error>> {
+        AsyncRead::poll_read(self.project().file, cx, buf)
     }
 }
