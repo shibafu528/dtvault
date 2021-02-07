@@ -4,4 +4,5 @@ members = [
     "dtvault-types",
     "dtvault-central",
     "dtvault-collector-chinachu",
+    "dtvault-encoder-ffmpeg",
 ]

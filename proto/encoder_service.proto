@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package shibafu528.dtvault.encoder;
+
+service EncoderService {
+    rpc EncodeVideo(stream EncodeVideoRequest) returns (stream EncodeVideoResponse);
+}
+
+message EncodeVideoRequest {
+    message Header {
+        uint64 total_length = 1;
+        // int32 priority = 2; // より高い値のほうが高優先度
+    }
+    message Datagram {
+        uint64 offset = 1;
+        bytes payload = 2;
+    }
+    oneof part {
+        Header header = 1;
+        Datagram datagram = 2;
+    }
+}
+
+message EncodeVideoResponse {
+    message Datagram {
+        uint64 offset = 1;
+        bytes payload = 2;
+    }
+    oneof part {
+        // Header header = 1;
+        Datagram datagram = 2;
+    }
+}

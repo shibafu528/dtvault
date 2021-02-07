@@ -9,5 +9,9 @@ pub mod shibafu528 {
         pub mod storage {
             tonic::include_proto!("shibafu528.dtvault.storage");
         }
+
+        pub mod encoder {
+            tonic::include_proto!("shibafu528.dtvault.encoder");
+        }
     }
 }

@@ -156,6 +156,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dtvault-encoder-ffmpeg"
+version = "0.1.0"
+dependencies = [
+ "dtvault-types",
+ "envy",
+ "prost",
+ "prost-types",
+ "serde",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "dtvault-types"
 version = "0.1.0"
 dependencies = [
