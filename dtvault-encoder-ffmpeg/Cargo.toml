@@ -18,7 +18,7 @@ features = ["derive"]
 
 [dependencies.tokio]
 version = "0.2"
-features = ["rt-threaded", "time", "stream", "fs", "macros"]
+features = ["rt-threaded", "time", "stream", "fs", "macros", "process"]
 
 [dependencies.dtvault-types]
 path = "../dtvault-types"
