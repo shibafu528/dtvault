@@ -69,6 +69,7 @@ impl EncoderServiceTrait for EncoderService {
         cmd.stdin(Stdio::piped());
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::null());
+        cmd.kill_on_drop(true);
 
         let mut child = match cmd.spawn() {
             Ok(c) => Ok(c),
