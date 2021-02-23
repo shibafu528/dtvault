@@ -118,6 +118,7 @@ impl EncoderServiceTrait for EncoderService {
                     return;
                 }
             }
+            eprintln!("[[Finish reader]]");
         });
         let mut sender_tx = tx.clone();
         tokio::spawn(async move {
@@ -156,6 +157,7 @@ impl EncoderServiceTrait for EncoderService {
                     }
                 }
             }
+            eprintln!("ffmpeg stdout reach eof");
 
             match child.await {
                 Ok(exit_status) => {
