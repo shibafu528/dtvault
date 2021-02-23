@@ -128,7 +128,7 @@ impl EncoderServiceTrait for EncoderService {
             let mut sent: usize = 0;
             loop {
                 let mut buffer = vec![0; 1024 * 1024];
-                match stdout_reader.read_buf(&mut buffer).await {
+                match stdout_reader.read(&mut buffer).await {
                     Ok(size) => match size {
                         0 => break,
                         n => {
