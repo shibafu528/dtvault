@@ -11,6 +11,9 @@ tonic = "0.3"
 prost = "0.6"
 prost-types = "0.6"
 envy = "0.4"
+toml = "0.5"
+shell-words = "1.0"
+thiserror = "1.0"
 
 [dependencies.serde]
 version = "1.0"

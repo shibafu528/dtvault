@@ -1,3 +1,4 @@
+use crate::config::Config;
 use dtvault_types::shibafu528::dtvault::encoder::encode_video_request::Part as EncodeVideoRequestPart;
 use dtvault_types::shibafu528::dtvault::encoder::encode_video_response::{
     Datagram as EncodeVideoResponseDatagram, Part as EncodeVideoResponsePart,
@@ -5,18 +6,19 @@ use dtvault_types::shibafu528::dtvault::encoder::encode_video_response::{
 use dtvault_types::shibafu528::dtvault::encoder::encoder_service_server::EncoderService as EncoderServiceTrait;
 use dtvault_types::shibafu528::dtvault::encoder::{EncodeVideoRequest, EncodeVideoResponse};
 use std::pin::Pin;
-use std::process::Stdio;
+use std::sync::Arc;
 use tokio::io::{BufReader, BufWriter};
 use tokio::prelude::*;
-use tokio::process::Command;
 use tokio::stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
 
-pub struct EncoderService {}
+pub struct EncoderService {
+    config: Arc<Config>,
+}
 
 impl EncoderService {
-    pub fn new() -> Self {
-        EncoderService {}
+    pub fn new(config: Arc<Config>) -> Self {
+        EncoderService { config }
     }
 }
 
@@ -47,33 +49,11 @@ impl EncoderServiceTrait for EncoderService {
 
         println!("EncodeVideo {:#?}", header);
 
-        let mut cmd = Command::new("ffmpeg");
-        cmd.args(&[
-            "-nostats",
-            "-i",
-            "pipe:0",
-            "-f",
-            "mp4",
-            "-c:v",
-            "libx264",
-            "-b:v",
-            "1M",
-            "-c:a",
-            "libfdk_aac",
-            "-b:a",
-            "96k",
-            "-s",
-            "1280x720",
-            "-ss",
-            "0",
-            "-movflags",
-            "frag_keyframe+empty_moov+faststart+default_base_moof",
-            "pipe:1",
-        ]);
-        cmd.stdin(Stdio::piped());
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::inherit());
-        cmd.kill_on_drop(true);
+        let preset = self.config.presets.first().unwrap();
+        let mut cmd = match preset.make_command() {
+            Ok(c) => Ok(c),
+            Err(e) => Err(Status::internal(format!("Invalid preset command: {}", e))),
+        }?;
 
         let mut child = match cmd.spawn() {
             Ok(c) => Ok(c),
