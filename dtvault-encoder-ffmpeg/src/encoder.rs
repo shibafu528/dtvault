@@ -93,7 +93,7 @@ impl EncoderServiceTrait for EncoderService {
                 let msg = match msg {
                     Ok(m) => m,
                     Err(e) => {
-                        eprintln!("[[Error in task!]] {}", e);
+                        eprintln!("[[Error in receiver task!]] {}", e);
                         return;
                     }
                 };
@@ -102,7 +102,7 @@ impl EncoderServiceTrait for EncoderService {
                     None => {
                         let status = Status::invalid_argument("Missing value: part");
                         if let Err(e) = receiver_tx.send(Err(status)).await {
-                            eprintln!("[[Error in task!]] {}", e);
+                            eprintln!("[[Error in receiver task!]] {}", e);
                         }
                         return;
                     }
@@ -117,12 +117,12 @@ impl EncoderServiceTrait for EncoderService {
                 };
                 if let Err(status) = result {
                     if let Err(e) = receiver_tx.send(Err(status)).await {
-                        eprintln!("[[Error in task!]] {}", e);
+                        eprintln!("[[Error in receiver task!]] {}", e);
                     }
                     return;
                 }
             }
-            eprintln!("[[Finish reader]]");
+            eprintln!("[[Finish receiver]]");
         });
         let mut sender_tx = tx.clone();
         tokio::spawn(async move {
@@ -142,7 +142,7 @@ impl EncoderServiceTrait for EncoderService {
                                 part: Some(EncodeVideoResponsePart::Datagram(datagram)),
                             };
                             if let Err(e) = sender_tx.send(Ok(datagram_req)).await {
-                                eprintln!("[[Error in task!]] {}", e);
+                                eprintln!("[[Error in sender task!]] {}", e);
                                 return;
                             };
 
@@ -150,12 +150,12 @@ impl EncoderServiceTrait for EncoderService {
                         }
                     },
                     Err(e) => {
-                        eprintln!("[[Error in task!]] {}", e);
+                        eprintln!("[[Error in sender task!]] {}", e);
                         if let Err(e) = sender_tx
                             .send(Err(Status::aborted(format!("Error while reading stream: {}", e))))
                             .await
                         {
-                            eprintln!("[[Error in task!]] {}", e);
+                            eprintln!("[[Error in sender task!]] {}", e);
                         }
                         return;
                     }
@@ -168,7 +168,7 @@ impl EncoderServiceTrait for EncoderService {
                     eprintln!("[[Exit status]] {}", exit_status);
                 }
                 Err(e) => {
-                    eprintln!("[[Error in task!]] {}", e);
+                    eprintln!("[[Error in sender task!]] {}", e);
                 }
             }
         });
