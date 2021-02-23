@@ -49,6 +49,7 @@ impl EncoderServiceTrait for EncoderService {
 
         let mut cmd = Command::new("ffmpeg");
         cmd.args(&[
+            "-nostats",
             "-i",
             "pipe:0",
             "-f",
