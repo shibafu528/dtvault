@@ -1,3 +1,4 @@
+use dtvault_types::shibafu528::dtvault::encoder as types;
 use serde::Deserialize;
 use std::process::Stdio;
 use tokio::process::Command;
@@ -48,6 +49,14 @@ impl Preset {
         cmd.kill_on_drop(true);
 
         Ok(cmd)
+    }
+
+    pub fn exchangeable(&self) -> types::Preset {
+        types::Preset {
+            preset_id: self.id.clone(),
+            title: self.title.as_ref().unwrap_or_else(|| &self.id).clone(),
+            command: self.command.clone(),
+        }
     }
 }
 

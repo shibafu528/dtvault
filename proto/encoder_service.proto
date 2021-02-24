@@ -2,8 +2,11 @@ syntax = "proto3";
 
 package shibafu528.dtvault.encoder;
 
+import "preset.proto";
+
 service EncoderService {
-    rpc EncodeVideo(stream EncodeVideoRequest) returns (stream EncodeVideoResponse);
+    rpc EncodeVideo (stream EncodeVideoRequest) returns (stream EncodeVideoResponse);
+    rpc ListPresets (ListPresetsRequest) returns (ListPresetsResponse);
 }
 
 message EncodeVideoRequest {
@@ -30,4 +33,11 @@ message EncodeVideoResponse {
         // Header header = 1;
         Datagram datagram = 2;
     }
+}
+
+message ListPresetsRequest {
+}
+
+message ListPresetsResponse {
+    repeated Preset presets = 2;
 }

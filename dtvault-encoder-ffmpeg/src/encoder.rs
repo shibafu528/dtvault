@@ -4,7 +4,9 @@ use dtvault_types::shibafu528::dtvault::encoder::encode_video_response::{
     Datagram as EncodeVideoResponseDatagram, Part as EncodeVideoResponsePart,
 };
 use dtvault_types::shibafu528::dtvault::encoder::encoder_service_server::EncoderService as EncoderServiceTrait;
-use dtvault_types::shibafu528::dtvault::encoder::{EncodeVideoRequest, EncodeVideoResponse};
+use dtvault_types::shibafu528::dtvault::encoder::{
+    EncodeVideoRequest, EncodeVideoResponse, ListPresetsRequest, ListPresetsResponse,
+};
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::io::{BufReader, BufWriter};
@@ -154,5 +156,15 @@ impl EncoderServiceTrait for EncoderService {
         });
 
         Ok(Response::new(Box::pin(rx)))
+    }
+
+    async fn list_presets(
+        &self,
+        _request: Request<ListPresetsRequest>,
+    ) -> Result<Response<ListPresetsResponse>, Status> {
+        let res = ListPresetsResponse {
+            presets: self.config.presets.iter().map(|p| p.exchangeable()).collect(),
+        };
+        Ok(Response::new(res))
     }
 }
