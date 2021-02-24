@@ -51,7 +51,22 @@ impl EncoderServiceTrait for EncoderService {
 
         println!("EncodeVideo {:#?}", header);
 
-        let preset = self.config.presets.first().unwrap();
+        if header.total_length < 1 {
+            return Err(Status::invalid_argument("Invalid value: total_length"));
+        }
+        if header.preset_id.is_empty() {
+            return Err(Status::invalid_argument("Invalid value: preset_id"));
+        }
+        let preset = match self.config.presets.iter().find(|p| p.id == header.preset_id) {
+            Some(p) => p,
+            None => {
+                return Err(Status::not_found(format!(
+                    "Preset not found (id = {})",
+                    header.preset_id
+                )))
+            }
+        };
+
         let mut cmd = match preset.make_command() {
             Ok(c) => Ok(c),
             Err(e) => Err(Status::internal(format!("Invalid preset command: {}", e))),

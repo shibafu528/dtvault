@@ -12,7 +12,7 @@ service EncoderService {
 message EncodeVideoRequest {
     message Header {
         uint64 total_length = 1;
-        // int32 priority = 2; // より高い値のほうが高優先度
+        string preset_id = 2;
     }
     message Datagram {
         uint64 offset = 1;
