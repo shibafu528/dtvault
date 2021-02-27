@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package shibafu528.dtvault;
 
+option go_package = "github.com/shibafu528/dtvault/types";
+
 // 物理チャンネルに関する情報 (Mirakurun互換フォーマット)
 message Channel {
     // 放送種別

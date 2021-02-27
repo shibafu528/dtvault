@@ -6,6 +6,8 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "channel.proto";
 
+option go_package = "github.com/shibafu528/dtvault/types";
+
 message Program {
     uint32 network_id = 1;
     uint32 service_id = 2;

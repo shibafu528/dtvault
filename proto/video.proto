@@ -4,6 +4,8 @@ package shibafu528.dtvault;
 
 import "program.proto";
 
+option go_package = "github.com/shibafu528/dtvault/types";
+
 message Video {
     string video_id = 1; // UUID
     string provider_id = 2;

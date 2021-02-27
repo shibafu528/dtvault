@@ -1,0 +1,66 @@
+schema {
+    query: Query
+}
+
+type Query {
+    programs: [Program]
+}
+
+type Program {
+    # `${networkId}:${serviceId}:${eventId}:${startAt.unixtime}`
+    id: ID!
+    networkId: Int!
+    serviceId: Int!
+    eventId: Int!
+    startAt: Time!
+    duration: Duration!
+    name: String!
+    description: String!
+    extended: [ExtendedEvent]!
+    service: Service!
+    videos: [Video!]!
+}
+
+type ExtendedEvent {
+    key: String!
+    value: String!
+}
+
+type Service {
+    # `${networkId}:${serviceId}`
+    id: ID!
+    networkId: Int!
+    serviceId: Int!
+    name: String!
+    channel: Channel!
+}
+
+type Channel {
+    # `${channelType}:${channel}`
+    id: ID!
+    channelType: ChannelType!
+    channel: String!
+    name: String!
+}
+
+enum ChannelType {
+    UNKNOWN
+    GR
+    BS
+    CS
+    SKY
+}
+
+type Video {
+    id: ID!
+    providerId: String!
+    # 64bit unsigned integer
+    totalLength: String!
+}
+
+type Duration {
+    seconds: Int!
+    nanos: Int!
+}
+
+scalar Time

@@ -5,6 +5,8 @@ package shibafu528.dtvault.storage;
 import "program.proto";
 import "video.proto";
 
+option go_package = "github.com/shibafu528/dtvault/types";
+
 service VideoStorageService {
     rpc CreateVideo (stream CreateVideoRequest) returns (CreateVideoResponse);
     rpc GetVideo (GetVideoRequest) returns (stream GetVideoResponse);

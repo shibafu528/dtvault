@@ -5,6 +5,8 @@ package shibafu528.dtvault.central;
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
+option go_package = "github.com/shibafu528/dtvault/types";
+
 message PersistProgram {
     message ExtendedEvent {
         string key = 1;
