@@ -56,6 +56,10 @@ type Video {
     providerId: String!
     # 64bit unsigned integer
     totalLength: String!
+    fileName: String!
+    mimeType: String!
+    storageId: String!
+    prefix: String!
 }
 
 type Duration {

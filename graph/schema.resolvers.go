@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
 	"github.com/shibafu528/dtvault/graph/generated"
@@ -30,12 +31,36 @@ func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) 
 
 	var programs []*model.Program
 	for _, program := range res.Programs {
+		res2, err := client.ListVideosByProgram(ctx, &types.ListVideosByProgramRequest{
+			ProgramId: &types.ProgramIdentity{
+				NetworkId: program.NetworkId,
+				ServiceId: program.ServiceId,
+				EventId:   program.EventId,
+				StartAt:   program.StartAt,
+			},
+		})
+		if err != nil {
+			log.Fatalf("ListVideosByProgram: %v", err)
+		}
+
 		ctype := model.ChannelType(program.Service.Channel.ChannelType.String())
 		var extended []*model.ExtendedEvent
 		for _, ext := range program.Extended {
 			extended = append(extended, &model.ExtendedEvent{
 				Key:   ext.Key,
 				Value: ext.Value,
+			})
+		}
+		var videos []*model.Video
+		for _, video := range res2.Videos {
+			videos = append(videos, &model.Video{
+				ID:          video.VideoId,
+				ProviderID:  video.ProviderId,
+				TotalLength: strconv.FormatUint(video.TotalLength, 10),
+				FileName:    video.FileName,
+				MimeType:    video.MimeType,
+				StorageID:   video.StorageId,
+				Prefix:      video.Prefix,
 			})
 		}
 
@@ -64,7 +89,7 @@ func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) 
 					Name:        program.Service.Channel.Name,
 				},
 			},
-			Videos: nil,
+			Videos: videos,
 		})
 	}
 
