@@ -1,0 +1,12 @@
+query programs {
+    programs {
+        id
+        name
+        description
+        startAt
+        service {
+            id
+            name
+        }
+    }
+}

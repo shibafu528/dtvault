@@ -5,13 +5,17 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { ChakraProvider } from '@chakra-ui/react';
 import { BrowserRouter } from 'react-router-dom';
+import { ApolloProvider } from '@apollo/client';
+import { apolloClient } from './apolloClient';
 
 ReactDOM.render(
     <React.StrictMode>
         <ChakraProvider>
-            <BrowserRouter>
-                <App />
-            </BrowserRouter>
+            <ApolloProvider client={apolloClient}>
+                <BrowserRouter>
+                    <App />
+                </BrowserRouter>
+            </ApolloProvider>
         </ChakraProvider>
     </React.StrictMode>,
     document.getElementById('root')
