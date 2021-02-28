@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams } from 'react-router-dom';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -11,6 +11,7 @@ import {
     Center,
     Icon,
     Divider,
+    Link,
 } from '@chakra-ui/react';
 import { ChevronRightIcon } from '@chakra-ui/icons';
 import { FaFilm } from 'react-icons/fa';
@@ -27,7 +28,7 @@ const Program = () => {
     return (
         <Container maxW="container.lg" mt="1rem">
             <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />} mb="1.25rem">
-                <BreadcrumbItem as={Link} to="/programs">
+                <BreadcrumbItem as={RouterLink} to="/programs">
                     <BreadcrumbLink>番組一覧</BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbItem isCurrentPage>
@@ -63,7 +64,10 @@ const Program = () => {
                         data.program.videos.map((video) => (
                             <Text mt="2">
                                 <Icon as={FaFilm} mr="2" />
-                                {video.fileName} ({(parseInt(video.totalLength, 10) / 1024 / 1024).toFixed(1)} MB)
+                                <Link href={`/stream?id=${video.id}`} color="blue.500" target="_blank">
+                                    {video.fileName}
+                                </Link>{' '}
+                                ({(parseInt(video.totalLength, 10) / 1024 / 1024).toFixed(1)} MB)
                             </Text>
                         ))}
                 </>
