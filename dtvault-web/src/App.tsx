@@ -7,14 +7,7 @@ import Programs from './pages/Programs';
 function App() {
     return (
         <div className="App">
-            <Box
-                as="nav"
-                height="3.5rem"
-                borderBottomWidth="2px"
-                borderBottomColor="blue.500"
-                display="flex"
-                alignItems="center"
-            >
+            <Box as="nav" height="3.5rem" boxShadow="base" display="flex" alignItems="center">
                 <Container maxW="container.lg">
                     <Link as={RouterLink} to="/" fontSize="xl" _hover={{ textDecoration: 'none' }}>
                         DTVault
