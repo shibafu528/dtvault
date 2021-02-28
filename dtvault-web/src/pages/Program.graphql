@@ -1,0 +1,23 @@
+query program($programId: ID!) {
+    program(id: $programId) {
+        id
+        name
+        description
+        startAt
+        extended {
+            key
+            value
+        }
+        service {
+            id
+            name
+        }
+        videos {
+            id
+            providerId
+            fileName
+            mimeType
+            totalLength
+        }
+    }
+}

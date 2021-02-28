@@ -3,6 +3,7 @@ import { Box, Container, Link } from '@chakra-ui/react';
 import { Link as RouterLink, Route, Switch } from 'react-router-dom';
 import Dashboard from './pages/Dashboard';
 import Programs from './pages/Programs';
+import Program from './pages/Program';
 
 function App() {
     return (
@@ -17,6 +18,7 @@ function App() {
             <Switch>
                 <Route path="/" exact component={Dashboard} />
                 <Route path="/programs" exact component={Programs} />
+                <Route path="/programs/:programId" exact component={Program} />
             </Switch>
         </div>
     );

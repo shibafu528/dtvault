@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-    Box,
     Breadcrumb,
     BreadcrumbItem,
     BreadcrumbLink,
@@ -10,21 +9,23 @@ import {
     SimpleGrid,
     Text,
     Flex,
+    LinkBox,
+    LinkOverlay,
 } from '@chakra-ui/react';
 import { ChevronRightIcon } from '@chakra-ui/icons';
 import { Program, useProgramsQuery } from '../generated/graphql';
-import { format, parseISO } from 'date-fns/fp';
-import { flow } from 'fp-ts/lib/function';
-
-const parseAndFormatDate = flow(parseISO, format('yyyy/H/d H:mm'));
+import { Link } from 'react-router-dom';
+import { parseAndFormatDate } from '../utils';
 
 type ItemProps = {
     item: Program;
 };
 
 const Item: React.FC<ItemProps> = ({ item }) => (
-    <Box borderWidth="1px" borderRadius="md" px="3" py="2">
-        <Text>{item.name}</Text>
+    <LinkBox borderWidth="1px" borderRadius="md" px="3" py="2">
+        <LinkOverlay as={Link} to={`/programs/${item.id}`}>
+            {item.name}
+        </LinkOverlay>
         <Flex justifyContent="space-between" mt="1">
             <Text color="gray.500" fontSize="sm">
                 {parseAndFormatDate(item.startAt)}
@@ -33,7 +34,7 @@ const Item: React.FC<ItemProps> = ({ item }) => (
                 {item.service.name}
             </Text>
         </Flex>
-    </Box>
+    </LinkBox>
 );
 
 function Programs() {

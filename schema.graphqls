@@ -4,10 +4,11 @@ schema {
 
 type Query {
     programs: [Program]
+    program(id: ID!): Program
 }
 
 type Program {
-    # `${networkId}:${serviceId}:${eventId}:${startAt.unixtime}`
+    # `${networkId}-${serviceId}-${eventId}-${startAt.unixtime}`
     id: ID!
     networkId: Int!
     serviceId: Int!
@@ -27,7 +28,7 @@ type ExtendedEvent {
 }
 
 type Service {
-    # `${networkId}:${serviceId}`
+    # `${networkId}-${serviceId}`
     id: ID!
     networkId: Int!
     serviceId: Int!
@@ -36,7 +37,7 @@ type Service {
 }
 
 type Channel {
-    # `${channelType}:${channel}`
+    # `${channelType}-${channel}`
     id: ID!
     channelType: ChannelType!
     channel: String!
