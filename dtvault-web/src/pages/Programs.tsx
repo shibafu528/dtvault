@@ -13,7 +13,10 @@ import {
 } from '@chakra-ui/react';
 import { ChevronRightIcon } from '@chakra-ui/icons';
 import { Program, useProgramsQuery } from '../generated/graphql';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns/fp';
+import { flow } from 'fp-ts/lib/function';
+
+const parseAndFormatDate = flow(parseISO, format('yyyy/H/d H:mm'));
 
 type ItemProps = {
     item: Program;
@@ -24,7 +27,7 @@ const Item: React.FC<ItemProps> = ({ item }) => (
         <Text>{item.name}</Text>
         <Flex justifyContent="space-between" mt="1">
             <Text color="gray.500" fontSize="sm">
-                {format(parseISO(item.startAt), 'yyyy/M/d H:mm')}
+                {parseAndFormatDate(item.startAt)}
             </Text>
             <Text color="gray.500" fontSize="sm">
                 {item.service.name}
