@@ -16,11 +16,10 @@ import (
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
 	"github.com/shibafu528/dtvault/graph/generated"
 	"github.com/shibafu528/dtvault/graph/model"
-	"google.golang.org/grpc"
 )
 
 func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) {
-	conn, err := grpc.Dial("[::1]:50051", grpc.WithInsecure())
+	conn, err := r.CentralAddr.Dial()
 	if err != nil {
 		log.Fatalf("fail to dial: %v", err)
 	}
@@ -111,7 +110,7 @@ func (r *queryResolver) Program(ctx context.Context, id string) (*model.Program,
 	eid, _ := strconv.ParseUint(matches[3], 10, 0)
 	at, _ := strconv.ParseInt(matches[4], 10, 0)
 
-	conn, err := grpc.Dial("[::1]:50051", grpc.WithInsecure())
+	conn, err := r.CentralAddr.Dial()
 	if err != nil {
 		log.Fatalf("fail to dial: %v", err)
 	}

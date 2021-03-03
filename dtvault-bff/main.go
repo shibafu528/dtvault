@@ -35,7 +35,7 @@ func main() {
 	}
 
 	resolver := graph.Resolver{
-		CentralAddr: centralAddr.Host,
+		CentralAddr: centralAddr,
 	}
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &resolver}))
 
