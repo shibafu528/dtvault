@@ -10,4 +10,5 @@ import "github.com/shibafu528/dtvault/dtvault-bff/grpcaddr"
 
 type Resolver struct {
 	CentralAddr *grpcaddr.Address
+	EncoderAddr *grpcaddr.Address
 }

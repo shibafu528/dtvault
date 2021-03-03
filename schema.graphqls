@@ -5,6 +5,7 @@ schema {
 type Query {
     programs: [Program]
     program(id: ID!): Program
+    presets: [Preset!]!
 }
 
 type Program {
@@ -66,6 +67,12 @@ type Video {
 type Duration {
     seconds: Int!
     nanos: Int!
+}
+
+type Preset {
+    id: ID!
+    title: String
+    command: String!
 }
 
 scalar Time

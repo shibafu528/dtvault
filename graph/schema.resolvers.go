@@ -6,8 +6,6 @@ package graph
 import (
 	"context"
 	"fmt"
-	"github.com/vektah/gqlparser/v2/gqlerror"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
 	"regexp"
 	"strconv"
@@ -16,6 +14,8 @@ import (
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
 	"github.com/shibafu528/dtvault/graph/generated"
 	"github.com/shibafu528/dtvault/graph/model"
+	"github.com/vektah/gqlparser/v2/gqlerror"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) {
@@ -190,6 +190,32 @@ func (r *queryResolver) Program(ctx context.Context, id string) (*model.Program,
 	}
 
 	return program, nil
+}
+
+func (r *queryResolver) Presets(ctx context.Context) ([]*model.Preset, error) {
+	conn, err := r.EncoderAddr.Dial()
+	if err != nil {
+		log.Fatalf("fail to dial: %v", err)
+	}
+	defer conn.Close()
+
+	client := types.NewEncoderServiceClient(conn)
+	req := types.ListPresetsRequest{}
+	res, err := client.ListPresets(ctx, &req)
+	if err != nil {
+		log.Fatalf("ListPrograms: %v", err)
+	}
+
+	var presets []*model.Preset
+	for _, preset := range res.Presets {
+		presets = append(presets, &model.Preset{
+			ID:      preset.PresetId,
+			Title:   &preset.Title,
+			Command: preset.Command,
+		})
+	}
+
+	return presets, nil
 }
 
 // Query returns generated.QueryResolver implementation.

@@ -9,6 +9,7 @@ import (
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
 	"github.com/shibafu528/dtvault/graph"
 	"github.com/shibafu528/dtvault/graph/generated"
+	"golang.org/x/xerrors"
 	"io"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 const defaultPort = "8080"
 
 var centralAddr *grpcaddr.Address
+var encoderAddr *grpcaddr.Address
 
 func main() {
 	var err error
@@ -25,17 +27,18 @@ func main() {
 	if port == "" {
 		port = defaultPort
 	}
-	centralUrl := os.Getenv("DTVAULT_CENTRAL_ADDR")
-	if centralUrl == "" {
-		log.Fatalf("Missing environment variable `DTVAULT_CENTRAL_ADDR`")
-	}
-	centralAddr, err = grpcaddr.Parse(centralUrl)
+	centralAddr, err = addrFromEnv("DTVAULT_CENTRAL_ADDR")
 	if err != nil {
-		log.Fatalf("Invalid environment variable `DTVAULT_CENTRAL_ADDR`: %v", err)
+		log.Fatal(err)
+	}
+	encoderAddr, err = addrFromEnv("DTVAULT_ENCODER_ADDR")
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	resolver := graph.Resolver{
 		CentralAddr: centralAddr,
+		EncoderAddr: encoderAddr,
 	}
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &resolver}))
 
@@ -45,6 +48,20 @@ func main() {
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
+}
+
+func addrFromEnv(key string) (*grpcaddr.Address, error) {
+	url := os.Getenv(key)
+	if url == "" {
+		return nil, xerrors.Errorf("missing environment variable `%s`", key)
+	}
+
+	addr, err := grpcaddr.Parse(url)
+	if err != nil {
+		return nil, xerrors.Errorf("Invalid environment variable `%s`: %+w", key, err)
+	}
+
+	return addr, nil
 }
 
 func streamHandler(w http.ResponseWriter, r *http.Request) {

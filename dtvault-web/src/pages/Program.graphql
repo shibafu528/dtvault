@@ -20,4 +20,9 @@ query program($programId: ID!) {
             totalLength
         }
     }
+    presets {
+        id
+        title
+        command
+    }
 }

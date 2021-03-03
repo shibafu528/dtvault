@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import {
+    Button,
     Breadcrumb,
     BreadcrumbItem,
     BreadcrumbLink,
@@ -12,9 +13,15 @@ import {
     Icon,
     Divider,
     Link,
+    Box,
+    Menu,
+    MenuButton,
+    MenuList,
+    MenuGroup,
+    MenuItem,
 } from '@chakra-ui/react';
-import { ChevronRightIcon } from '@chakra-ui/icons';
-import { FaFilm } from 'react-icons/fa';
+import { ChevronRightIcon, DownloadIcon } from '@chakra-ui/icons';
+import { FaFilm, FaPlayCircle } from 'react-icons/fa';
 import { useProgramQuery } from '../generated/graphql';
 import { parseAndFormatDate } from '../utils';
 
@@ -62,13 +69,35 @@ const Program = () => {
                     <Heading size="sm">動画一覧</Heading>
                     {data?.program?.videos &&
                         data.program.videos.map((video) => (
-                            <Text mt="2">
-                                <Icon as={FaFilm} mr="2" />
-                                <Link href={`/stream?id=${video.id}`} color="blue.500" target="_blank">
-                                    {video.fileName}
-                                </Link>{' '}
-                                ({(parseInt(video.totalLength, 10) / 1024 / 1024).toFixed(1)} MB)
-                            </Text>
+                            <Box key={video.id} mt="2">
+                                <Menu>
+                                    <MenuButton
+                                        as={Button}
+                                        leftIcon={<Icon as={FaPlayCircle} />}
+                                        colorScheme="blue"
+                                        disabled={!data?.presets || data.presets.length === 0}
+                                    >
+                                        視聴
+                                    </MenuButton>
+                                    <MenuList>
+                                        <MenuGroup title="エンコードプロファイルを選択...">
+                                            {data?.presets?.map((preset) => (
+                                                <MenuItem key={preset.id}>{preset.title || preset.id}</MenuItem>
+                                            ))}
+                                        </MenuGroup>
+                                    </MenuList>
+                                </Menu>
+                                <Link href={`/stream?id=${video.id}`} target="_blank" _hover={undefined} ml="2">
+                                    <Button leftIcon={<DownloadIcon />}>
+                                        ダウンロード
+                                        <Text color="gray.600" fontSize="xs" ml="0.5">
+                                            ({(parseInt(video.totalLength, 10) / 1024 / 1024).toFixed(1)} MB)
+                                        </Text>
+                                    </Button>
+                                </Link>
+                                <Icon as={FaFilm} mx="2" />
+                                {video.fileName}
+                            </Box>
                         ))}
                 </>
             )}
