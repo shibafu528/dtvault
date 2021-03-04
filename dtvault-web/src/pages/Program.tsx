@@ -22,6 +22,7 @@ import {
 } from '@chakra-ui/react';
 import { ChevronRightIcon, DownloadIcon } from '@chakra-ui/icons';
 import { FaFilm, FaPlayCircle } from 'react-icons/fa';
+import qs from 'qs';
 import { useProgramQuery } from '../generated/graphql';
 import { parseAndFormatDate } from '../utils';
 
@@ -82,7 +83,17 @@ const Program = () => {
                                     <MenuList>
                                         <MenuGroup title="エンコードプロファイルを選択...">
                                             {data?.presets?.map((preset) => (
-                                                <MenuItem key={preset.id}>{preset.title || preset.id}</MenuItem>
+                                                <Link
+                                                    key={preset.id}
+                                                    href={`/stream?${qs.stringify({
+                                                        id: video.id,
+                                                        preset: preset.id,
+                                                    })}`}
+                                                    target="_blank"
+                                                    _hover={undefined}
+                                                >
+                                                    <MenuItem>{preset.title || preset.id}</MenuItem>
+                                                </Link>
                                             ))}
                                         </MenuGroup>
                                     </MenuList>
