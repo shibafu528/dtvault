@@ -78,7 +78,16 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Missing id\n")
 		return
 	}
-	//p := q.Get("preset")
+
+	var e emitter
+	p := q.Get("preset")
+	if p == "" {
+		e = &passthru{}
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "Invalid preset\n")
+		return
+	}
 
 	conn, err := centralAddr.Dial()
 	if err != nil {
@@ -100,6 +109,9 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "Internal error\n")
 		return
 	}
+
+	emit := make(chan []byte)
+	go e.run(emit, w)
 	for {
 		res, err := stream.Recv()
 		if err == io.EOF {
@@ -109,21 +121,46 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("GetVideo: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprint(w, "Internal error\n")
-			return
+			break
 		}
 		switch part := res.Part.(type) {
 		case *types.GetVideoResponse_Header:
-			w.Header().Set("Content-Type", part.Header.MimeType)
-			// パススルー出力の場合はファイル名とか出せる
-			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", part.Header.FileName))
-			//w.Header().Set("Content-Length", strconv.FormatUint(part.Header.TotalLength, 10))
+			e.setVideo(part.Header)
 		case *types.GetVideoResponse_Datagram_:
-			w.Write(part.Datagram.Payload)
+			emit <- part.Datagram.Payload
 		default:
 			log.Printf("GetVideo: invalid response: %v", res)
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprint(w, "Internal error\n")
-			return
+			break
 		}
+	}
+	close(emit)
+}
+
+type emitter interface {
+	setVideo(v *types.Video)
+	run(in <-chan []byte, w http.ResponseWriter)
+}
+
+type passthru struct {
+	v *types.Video
+}
+
+func (p *passthru) setVideo(v *types.Video) {
+	p.v = v
+}
+
+func (p *passthru) run(in <-chan []byte, w http.ResponseWriter) {
+	init := false
+	for i := range in {
+		if !init {
+			w.Header().Set("Content-Type", p.v.MimeType)
+			// パススルー出力の場合はファイル名とか出せる
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", p.v.FileName))
+			//w.Header().Set("Content-Length", strconv.FormatUint(part.Header.TotalLength, 10))
+			init = true
+		}
+		w.Write(i)
 	}
 }
