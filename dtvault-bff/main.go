@@ -29,11 +29,11 @@ func main() {
 	if port == "" {
 		port = defaultPort
 	}
-	centralAddr, err = addrFromEnv("DTVAULT_CENTRAL_ADDR")
+	centralAddr, err = grpcaddr.FromEnv("DTVAULT_CENTRAL_ADDR")
 	if err != nil {
 		log.Fatal(err)
 	}
-	encoderAddr, err = addrFromEnv("DTVAULT_ENCODER_ADDR")
+	encoderAddr, err = grpcaddr.FromEnv("DTVAULT_ENCODER_ADDR")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -50,20 +50,6 @@ func main() {
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
-}
-
-func addrFromEnv(key string) (*grpcaddr.Address, error) {
-	url := os.Getenv(key)
-	if url == "" {
-		return nil, xerrors.Errorf("missing environment variable `%s`", key)
-	}
-
-	addr, err := grpcaddr.Parse(url)
-	if err != nil {
-		return nil, xerrors.Errorf("Invalid environment variable `%s`: %+w", key, err)
-	}
-
-	return addr, nil
 }
 
 func streamHandler(w http.ResponseWriter, r *http.Request) {
