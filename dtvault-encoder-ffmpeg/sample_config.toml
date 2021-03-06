@@ -1,0 +1,18 @@
+# Sample of dtvault-encoder-ffmpeg.config.toml
+
+# gRPC サーバ設定
+[server]
+# Listen するポート
+listen = "[::0]:50051"
+
+# エンコードプリセット
+# 最低1つ、必ず定義してください
+[[presets]]
+# サーバ内で一意の識別子
+# クラスタ内では同一相当の結果が期待できるエンコード設定に対して同じ値とすることで、分散ができたらいいな
+id = "h264_720p_1m_96k"
+# 人間向けに表示するための設定名 (省略可)
+title = "H.264 1280x720 (1Mbps/96kbps)"
+# 実行するコマンドライン
+# STDINからエンコード元の動画データを受け取り、STDOUTにエンコード結果が出力されるようにしてください
+command = "ffmpeg -nostats -i pipe:0 -f mp4 -c:v libx264 -b:v 1M -c:a libfdk_aac -b:a 96k -s 1280x720 -ss 0 -movflags frag_keyframe+empty_moov+faststart+default_base_moof pipe:1"

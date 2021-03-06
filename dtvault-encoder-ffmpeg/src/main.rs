@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let encoder_service = EncoderService::new(config.clone());
 
-    let addr = config.listen.parse().unwrap();
+    let addr = config.server.listen.parse().unwrap();
     println!("Server listening on {}", addr);
 
     Server::builder()

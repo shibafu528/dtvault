@@ -5,19 +5,31 @@ use tokio::process::Command;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    pub listen: String,
+    pub server: Server,
     #[serde(default)]
     pub presets: Vec<Preset>,
 }
 
 impl Config {
     pub fn validate(&self) -> Result<(), String> {
+        self.server.validate()?;
         if self.presets.is_empty() {
             return Err("no presets found".to_string());
         }
         for preset in &self.presets {
             preset.validate()?;
         }
+        Ok(())
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Server {
+    pub listen: String,
+}
+
+impl Server {
+    pub fn validate(&self) -> Result<(), String> {
         Ok(())
     }
 }
