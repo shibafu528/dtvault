@@ -1,12 +1,13 @@
 mod program;
+mod serde;
 mod video_storage;
 
 use crate::program::{ProgramService, ProgramStore};
 use crate::video_storage::{FileSystem, VideoStorageService};
+use ::serde::Deserialize;
 use dtvault_types::shibafu528::dtvault::central::program_service_server::ProgramServiceServer;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageServiceServer;
 use envy::Error as EnvyError;
-use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tonic::{transport::Server, Request, Status};

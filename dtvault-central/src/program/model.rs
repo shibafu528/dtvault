@@ -12,46 +12,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
-mod serde_uuid {
-    use serde::Deserialize;
-    use uuid::Uuid;
-
-    pub fn serialize<S>(value: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(value.to_hyphenated().encode_lower(&mut Uuid::encode_buffer()))
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Uuid, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Uuid::parse_str(&s).map_err(serde::de::Error::custom)
-    }
-}
-
-mod serde_mime {
-    use mime::Mime;
-    use serde::Deserialize;
-
-    pub fn serialize<S>(value: &Mime, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(value.essence_str())
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Mime, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        s.parse().map_err(serde::de::Error::custom)
-    }
-}
-
 #[derive(thiserror::Error, Debug)]
 pub enum MessageConversionError {
     #[error("Missing required field `{0}`")]
@@ -185,7 +145,7 @@ impl Persistence<PersistService> for Service {
 
 #[derive(Clone, Serialize)]
 pub struct Program {
-    #[serde(serialize_with = "serialize_uuid")]
+    #[serde(with = "crate::serde::uuid")]
     id: Uuid,
     pub network_id: u16,
     pub service_id: u16,
@@ -200,13 +160,6 @@ pub struct Program {
     metadata: HashMap<String, String>,
     #[serde(skip)]
     videos: Vec<Arc<Video>>,
-}
-
-fn serialize_uuid<S>(value: &Uuid, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    serializer.serialize_str(value.to_hyphenated().encode_lower(&mut Uuid::encode_buffer()))
 }
 
 impl Program {
@@ -388,18 +341,18 @@ impl Persistence<PersistExtendedEvent> for ExtendedEvent {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Video {
-    #[serde(with = "serde_uuid")]
+    #[serde(with = "crate::serde::uuid")]
     pub id: Uuid,
     pub provider_id: String,
-    #[serde(with = "serde_uuid")]
+    #[serde(with = "crate::serde::uuid")]
     program_id: Uuid,
     total_length: u64,
     pub file_name: String,
     original_file_name: String,
-    #[serde(with = "serde_mime")]
+    #[serde(with = "crate::serde::mime")]
     mime_type: Mime,
     // TODO: 複数ストレージちゃんとやる時には考え直す
-    #[serde(with = "serde_uuid")]
+    #[serde(with = "crate::serde::uuid")]
     storage_id: Uuid,
     storage_prefix: String,
 }
