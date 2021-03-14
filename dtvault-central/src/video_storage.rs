@@ -121,7 +121,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
                 VideoWriteError::AlreadyExists(s) => {
                     Err(Status::invalid_argument(format!("Provider ID `{}` already exists", s)))
                 }
-                VideoWriteError::PoisonError(e) => Err(Status::aborted(format!("{}", e))),
+                VideoWriteError::Poisoned(e) => Err(Status::aborted(format!("{}", e))),
             },
         }?;
 

@@ -8,54 +8,31 @@ use fs2::FileExt;
 use prost::bytes::Buf;
 use prost::Message;
 use std::collections::BTreeMap;
-use std::fmt;
 use std::io::Write;
-use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, RwLock, RwLockWriteGuard};
 
 type ProgramStoreBackend = BTreeMap<ProgramKey, Arc<StoredProgram>>;
-type StoreReadPoisonError<'a> = PoisonError<RwLockReadGuard<'a, ProgramStoreBackend>>;
-type StoreWritePoisonError<'a> = PoisonError<RwLockWriteGuard<'a, ProgramStoreBackend>>;
 
+#[derive(thiserror::Error, Debug)]
+#[error("poisoned lock: another task failed inside")]
+pub struct MutexPoisonError;
+
+#[derive(thiserror::Error, Debug)]
 pub enum MetadataWriteError<'a> {
+    #[error("Program not found (id = {0})")]
     ProgramNotFound(&'a ProgramKey),
-    PoisonError(StoreWritePoisonError<'a>),
+    #[error(transparent)]
+    Poisoned(#[from] MutexPoisonError),
 }
 
-impl<'a> From<StoreWritePoisonError<'a>> for MetadataWriteError<'a> {
-    fn from(err: StoreWritePoisonError<'a>) -> Self {
-        Self::PoisonError(err)
-    }
-}
-
-impl fmt::Display for MetadataWriteError<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ProgramNotFound(key) => write!(f, "Program not found (id = {})", key),
-            Self::PoisonError(e) => write!(f, "{}", e),
-        }
-    }
-}
-
+#[derive(thiserror::Error, Debug)]
 pub enum VideoWriteError<'a> {
+    #[error("Program not found (id = {0})")]
     ProgramNotFound(&'a ProgramKey),
+    #[error("Provider ID `{0}` already exists")]
     AlreadyExists(String),
-    PoisonError(StoreWritePoisonError<'a>),
-}
-
-impl<'a> From<StoreWritePoisonError<'a>> for VideoWriteError<'a> {
-    fn from(err: StoreWritePoisonError<'a>) -> Self {
-        Self::PoisonError(err)
-    }
-}
-
-impl fmt::Display for VideoWriteError<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ProgramNotFound(key) => write!(f, "Program not found (id = {})", key),
-            Self::AlreadyExists(s) => write!(f, "Provider ID `{}` already exists", s),
-            Self::PoisonError(e) => write!(f, "{}", e),
-        }
-    }
+    #[error(transparent)]
+    Poisoned(#[from] MutexPoisonError),
 }
 
 pub enum FindOrCreateNotice {
@@ -114,21 +91,21 @@ impl ProgramStore {
         })
     }
 
-    pub fn all(&self) -> Result<Vec<Arc<StoredProgram>>, StoreReadPoisonError> {
-        let store = self.store.read()?;
+    pub fn all(&self) -> Result<Vec<Arc<StoredProgram>>, MutexPoisonError> {
+        let store = self.store.read().map_err(|_| MutexPoisonError)?;
         Ok(store.values().cloned().collect())
     }
 
-    pub fn find(&self, key: &ProgramKey) -> Result<Option<Arc<StoredProgram>>, StoreReadPoisonError> {
-        let store = self.store.read()?;
+    pub fn find(&self, key: &ProgramKey) -> Result<Option<Arc<StoredProgram>>, MutexPoisonError> {
+        let store = self.store.read().map_err(|_| MutexPoisonError)?;
         Ok(store.get(key).map(Arc::clone))
     }
 
     pub fn find_or_create(
         &self,
         program: Program,
-    ) -> Result<(Arc<StoredProgram>, FindOrCreateNotice), StoreWritePoisonError> {
-        let mut store = self.store.write()?;
+    ) -> Result<(Arc<StoredProgram>, FindOrCreateNotice), MutexPoisonError> {
+        let mut store = self.store.write().map_err(|_| MutexPoisonError)?;
         let key = ProgramKey::from_program(&program);
         let mut notice = FindOrCreateNotice::AlreadyExists;
         let sp = store
@@ -149,7 +126,7 @@ impl ProgramStore {
         key: &'a ProgramKey,
         video: StoredVideo,
     ) -> Result<Arc<StoredVideo>, VideoWriteError<'a>> {
-        let mut store = self.store.write()?;
+        let mut store = self.store.write().map_err(|_| MutexPoisonError)?;
         let mut program = match store.get(key) {
             Some(p) => (**p).clone(),
             None => return Err(VideoWriteError::ProgramNotFound(key)),
@@ -173,7 +150,7 @@ impl ProgramStore {
         metadata_key: &str,
         metadata_value: &str,
     ) -> Result<(), MetadataWriteError<'a>> {
-        let mut store = self.store.write()?;
+        let mut store = self.store.write().map_err(|_| MutexPoisonError)?;
         match store.get(key) {
             Some(sp) => {
                 let mut sp = (**sp).clone();

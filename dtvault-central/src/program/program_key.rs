@@ -2,7 +2,7 @@ use super::Program as StoredProgram;
 use dtvault_types::shibafu528::dtvault::{Program, ProgramIdentity};
 use std::fmt;
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct ProgramKey {
     start_at: std::time::Duration,
     network_id: u16,
