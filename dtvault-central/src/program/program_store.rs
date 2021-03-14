@@ -9,7 +9,7 @@ use prost::bytes::Buf;
 use prost::Message;
 use std::collections::BTreeMap;
 use std::io::Write;
-use std::sync::{Arc, RwLock, RwLockWriteGuard};
+use std::sync::{Arc, RwLock};
 
 type ProgramStoreBackend = BTreeMap<ProgramKey, Arc<StoredProgram>>;
 
@@ -165,7 +165,7 @@ impl ProgramStore {
     }
 
     // TODO: 非同期化する
-    fn persist<'a>(&self, store: &RwLockWriteGuard<'a, ProgramStoreBackend>) {
+    fn persist(&self, store: &ProgramStoreBackend) {
         let path = self.config.programs_file_path();
         let file = std::fs::File::create(path).unwrap();
         file.lock_exclusive().unwrap();
