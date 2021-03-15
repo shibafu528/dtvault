@@ -7,6 +7,12 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/shibafu528/dtvault/types";
 
+message PersistStore {
+    reserved 1; // マジックナンバーを書き込みたくなった時用の予約
+    repeated PersistProgram programs = 2;
+    repeated PersistVideo videos = 3;
+}
+
 message PersistProgram {
     message ExtendedEvent {
         string key = 1;
