@@ -138,25 +138,44 @@ impl ProgramStore {
         })
     }
 
+    pub fn find_videos(&self, ids: &[Uuid]) -> Result<Vec<Option<Arc<StoredVideo>>>, MutexPoisonError> {
+        let video = self.videos.read().map_err(|_| MutexPoisonError)?;
+        let mut result = vec![];
+        for id in ids {
+            if let Some(v) = video.get(id) {
+                result.push(Some(v.clone()));
+            } else {
+                result.push(None);
+            }
+        }
+        Ok(result)
+    }
+
     pub fn create_video<'a>(
         &'a self,
         key: &'a ProgramKey,
         video: StoredVideo,
     ) -> Result<Arc<StoredVideo>, VideoWriteError<'a>> {
         self.mutation(|_| {
-            let mut store = self.programs.write().map_err(|_| MutexPoisonError)?;
-            let mut program = match store.get(key) {
+            let mut programs = self.programs.write().map_err(|_| MutexPoisonError)?;
+            let mut videos = self.videos.write().map_err(|_| MutexPoisonError)?;
+            let mut program = match programs.get(key) {
                 Some(p) => (**p).clone(),
                 None => return Err(VideoWriteError::ProgramNotFound(key)),
             };
 
-            if program.exists_video(&video.provider_id) {
-                return Err(VideoWriteError::AlreadyExists(video.provider_id.clone()));
+            for video_id in program.video_ids() {
+                if let Some(v) = videos.get(video_id) {
+                    if v.provider_id == video.provider_id {
+                        return Err(VideoWriteError::AlreadyExists(video.provider_id.clone()));
+                    }
+                }
             }
 
             let video = Arc::new(video);
-            program.videos_mut().push(video.clone());
-            store.insert(key.clone(), Arc::new(program));
+            program.video_ids_mut().push(video.id);
+            programs.insert(key.clone(), Arc::new(program));
+            videos.insert(video.id, video.clone()); // TODO: VideoID重複チェック
 
             Ok(video)
         })

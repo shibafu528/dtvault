@@ -8,7 +8,6 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -159,7 +158,7 @@ pub struct Program {
     #[serde(skip)]
     metadata: HashMap<String, String>,
     #[serde(skip)]
-    videos: Vec<Arc<Video>>,
+    video_ids: Vec<Uuid>,
 }
 
 impl Program {
@@ -190,7 +189,7 @@ impl Program {
                 None => None,
             },
             metadata: HashMap::new(),
-            videos: Vec::new(),
+            video_ids: Vec::new(),
         })
     }
 
@@ -222,21 +221,12 @@ impl Program {
         &mut self.metadata
     }
 
-    pub fn videos(&self) -> &Vec<Arc<Video>> {
-        &self.videos
+    pub fn video_ids(&self) -> &Vec<Uuid> {
+        &self.video_ids
     }
 
-    pub fn videos_mut(&mut self) -> &mut Vec<Arc<Video>> {
-        &mut self.videos
-    }
-
-    pub fn exists_video(&self, provider_id: &str) -> bool {
-        for video in &self.videos {
-            if video.provider_id == provider_id {
-                return true;
-            }
-        }
-        false
+    pub fn video_ids_mut(&mut self) -> &mut Vec<Uuid> {
+        &mut self.video_ids
     }
 }
 
@@ -268,10 +258,10 @@ impl Persistence<PersistProgram> for Program {
                 None => None,
             },
             metadata: persisted.metadata,
-            videos: persisted
-                .videos
+            video_ids: persisted
+                .video_ids
                 .into_iter()
-                .map(|v| Arc::new(Video::from_persisted(v).unwrap()))
+                .map(|v| Uuid::parse_str(&v).unwrap())
                 .collect(),
         })
     }
@@ -296,7 +286,11 @@ impl Persistence<PersistProgram> for Program {
             extended: self.extended.iter().map(|e| e.persist()).collect(),
             service: self.service.as_ref().map(|s| s.persist()),
             metadata: self.metadata.clone(),
-            videos: self.videos.iter().map(|e| e.persist()).collect(),
+            video_ids: self
+                .video_ids
+                .iter()
+                .map(|id| id.to_hyphenated().encode_lower(&mut Uuid::encode_buffer()).to_string())
+                .collect(),
         }
     }
 }

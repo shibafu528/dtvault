@@ -78,11 +78,17 @@ impl VideoStorageServiceTrait for VideoStorageService {
             None => Err(Status::invalid_argument("Empty stream")),
         }?;
 
-        if program.exists_video(&header.provider_id) {
-            return Err(Status::invalid_argument(format!(
-                "Provider ID `{}` already exists",
-                header.provider_id
-            )));
+        let videos = match self.store.find_videos(program.video_ids()) {
+            Ok(v) => Ok(v),
+            Err(e) => Err(Status::aborted(format!("{}", e))),
+        }?;
+        for video in videos.into_iter().filter_map(|v| v) {
+            if video.provider_id == header.provider_id {
+                return Err(Status::invalid_argument(format!(
+                    "Provider ID `{}` already exists",
+                    header.provider_id
+                )));
+            }
         }
         let video = Video::from_exchanged(&program, header);
         let writer = match self.storage.create(&program, &video).await {

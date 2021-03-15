@@ -30,7 +30,7 @@ message PersistProgram {
     repeated ExtendedEvent extended = 9;
     PersistService service = 10;
     map<string, string> metadata = 11;
-    repeated PersistVideo videos = 12;
+    repeated string video_ids = 12;
 }
 
 message PersistChannel {
