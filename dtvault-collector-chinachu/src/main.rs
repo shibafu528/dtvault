@@ -1,22 +1,24 @@
-mod program_id;
+mod chinachu;
 mod record_with_raw;
-mod recorded_program;
 
-use crate::record_with_raw::RecordWithRaw;
+use std::fs::File;
+use std::io::{BufReader, Read};
+use std::time::Instant;
+
 use clap::{App, Arg};
+use envy::Error;
+use serde::Deserialize;
+use serde_json::value::RawValue;
+use tokio::sync::mpsc;
+use tonic::transport::Uri;
+
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as CreateProgramStatus;
 use dtvault_types::shibafu528::dtvault::central::program_service_client::ProgramServiceClient;
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::{Datagram as VideoDatagram, Part as VideoPart};
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_client::VideoStorageServiceClient;
 use dtvault_types::shibafu528::dtvault::storage::CreateVideoRequest;
-use envy::Error;
-use serde::Deserialize;
-use serde_json::value::RawValue;
-use std::fs::File;
-use std::io::{BufReader, Read};
-use std::time::Instant;
-use tokio::sync::mpsc;
-use tonic::transport::Uri;
+
+use crate::record_with_raw::RecordWithRaw;
 
 #[derive(Deserialize, Debug)]
 struct Config {

@@ -1,4 +1,4 @@
-use crate::recorded_program::{MessageConversionError, RecordedProgram};
+use crate::chinachu::model::{MessageConversionError, RecordedProgram};
 use dtvault_types::shibafu528::dtvault::central::{CreateProgramRequest, UpdateProgramMetadataRequest};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Header as VideoHeader;
 use std::path::Path;

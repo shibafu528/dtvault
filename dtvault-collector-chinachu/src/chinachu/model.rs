@@ -1,4 +1,4 @@
-use crate::program_id::{ParseProgramIDError, ProgramID};
+use super::program_id::{ParseProgramIDError, ProgramID};
 use dtvault_types::shibafu528::dtvault::{
     Channel as ChannelPb, ChannelType, ExtendedEvent, Program, ProgramIdentity, Service,
 };
