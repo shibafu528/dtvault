@@ -1,50 +1,22 @@
 use crate::recorded_program::{MessageConversionError, RecordedProgram};
 use dtvault_types::shibafu528::dtvault::central::{CreateProgramRequest, UpdateProgramMetadataRequest};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Header as VideoHeader;
-use serde_json::value::RawValue;
-use std::ops::Deref;
 use std::path::Path;
 
-#[derive(Debug)]
-pub enum RawJson {
-    String(String),
-    Serde(Box<RawValue>),
-}
-
-impl From<String> for RawJson {
-    fn from(s: String) -> Self {
-        RawJson::String(s)
-    }
-}
-
-impl From<Box<RawValue>> for RawJson {
-    fn from(v: Box<RawValue>) -> Self {
-        RawJson::Serde(v)
-    }
-}
-
-impl Deref for RawJson {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        match &self {
-            RawJson::String(s) => s,
-            RawJson::Serde(s) => s.get(),
-        }
-    }
-}
+const PROGRAM_METADATA_KEY: &str = "chinachu_program_data";
+const VIDEO_PROVIDER_ID: &str = "dtvault-collector-chinachu";
 
 #[derive(Debug)]
 pub struct RecordWithRaw {
     pub record: RecordedProgram,
-    pub raw: RawJson,
+    pub raw_json: String,
 }
 
 impl RecordWithRaw {
     pub fn from_str(json: &str) -> Result<RecordWithRaw, serde_json::Error> {
         Ok(RecordWithRaw {
             record: serde_json::from_str(json)?,
-            raw: json.to_string().into(),
+            raw_json: json.to_string(),
         })
     }
 
@@ -57,8 +29,8 @@ impl RecordWithRaw {
         let id = self.record.to_identity()?;
         Ok(UpdateProgramMetadataRequest {
             program_id: Some(id),
-            key: "chinachu_program_data".to_string(),
-            value: self.raw.to_string(),
+            key: PROGRAM_METADATA_KEY.to_string(),
+            value: self.raw_json.to_string(),
         })
     }
 
@@ -70,7 +42,7 @@ impl RecordWithRaw {
             .map(|m| m.essence_str().to_string())
             .unwrap_or_default();
         Ok(VideoHeader {
-            provider_id: "dtvault-collector-chinachu".to_string(),
+            provider_id: VIDEO_PROVIDER_ID.to_string(),
             program_id: Some(self.record.to_identity()?),
             total_length: path.metadata()?.len(),
             file_name,
