@@ -1,4 +1,5 @@
 use crate::program::prost_convert::ToDurationExt;
+use crate::program::{CachedProgramFinder, ProgramKey};
 use dtvault_types::shibafu528::dtvault as types;
 use dtvault_types::shibafu528::dtvault::central::persist_program::ExtendedEvent as PersistExtendedEvent;
 use dtvault_types::shibafu528::dtvault::central::{PersistChannel, PersistProgram, PersistService, PersistVideo};
@@ -145,7 +146,7 @@ impl Persistence<PersistService> for Service {
 #[derive(Clone, Serialize)]
 pub struct Program {
     #[serde(with = "crate::serde::uuid")]
-    id: Uuid,
+    pub id: Uuid,
     pub network_id: u16,
     pub service_id: u16,
     pub event_id: u16,
@@ -366,7 +367,10 @@ impl Video {
         }
     }
 
-    pub fn exchangeable(&self) -> types::Video {
+    pub fn exchangeable(&self, finder: &mut CachedProgramFinder) -> types::Video {
+        let program_id = finder
+            .find_by_uuid(&self.program_id)
+            .map(|p| ProgramKey::from_stored_program(&p).exchangeable());
         types::Video {
             video_id: self
                 .id
@@ -374,7 +378,7 @@ impl Video {
                 .encode_lower(&mut Uuid::encode_buffer())
                 .to_string(),
             provider_id: self.provider_id.clone(),
-            program_id: None, // TODO: これどうしよ
+            program_id,
             total_length: self.total_length,
             file_name: self.file_name.clone(),
             mime_type: self.mime_type.essence_str().to_string(),

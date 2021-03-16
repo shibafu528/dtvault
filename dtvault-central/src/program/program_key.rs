@@ -45,6 +45,19 @@ impl ProgramKey {
             event_id: program_id.event_id as u16,
         }
     }
+
+    pub fn exchangeable(&self) -> ProgramIdentity {
+        let start_at = prost_types::Duration::from(self.start_at);
+        ProgramIdentity {
+            start_at: Some(prost_types::Timestamp {
+                seconds: start_at.seconds,
+                nanos: start_at.nanos,
+            }),
+            network_id: self.network_id as u32,
+            service_id: self.service_id as u32,
+            event_id: self.event_id as u32,
+        }
+    }
 }
 
 impl fmt::Display for ProgramKey {

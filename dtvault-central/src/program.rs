@@ -188,9 +188,16 @@ impl ProgramServiceTrait for ProgramService {
         let program_key = ProgramKey::from_program_id(&program_id);
         match self.store.find(&program_key) {
             Ok(Some(sp)) => match self.store.find_videos(sp.video_ids()) {
-                Ok(videos) => Ok(Response::new(ListVideosByProgramResponse {
-                    videos: videos.into_iter().filter_map(|v| v).map(|v| v.exchangeable()).collect(),
-                })),
+                Ok(videos) => {
+                    let mut cache = CachedProgramFinder::new(self.store.clone());
+                    Ok(Response::new(ListVideosByProgramResponse {
+                        videos: videos
+                            .into_iter()
+                            .filter_map(|v| v)
+                            .map(|v| v.exchangeable(&mut cache))
+                            .collect(),
+                    }))
+                }
                 Err(e) => Err(Status::aborted(format!("{}", e))),
             },
             Ok(None) => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
