@@ -86,47 +86,33 @@ impl FileSystem {
     }
 
     async fn store_metadata(&self, video_dir: &PathBuf, program: &Program, video: &Video) -> Result<(), CreateError> {
+        async fn write_json(path: PathBuf, json: String) -> Result<(), CreateError> {
+            match tokio::fs::File::create(path).await {
+                Ok(mut f) => match f.write_all(json.as_bytes()).await {
+                    Ok(_) => Ok(()),
+                    Err(e) => Err(CreateError::MetadataBackupFailed(e.to_string())),
+                },
+                Err(e) => Err(CreateError::MetadataBackupFailed(e.to_string())),
+            }
+        }
+
         let program_json = match serde_json::to_string_pretty(&program) {
             Ok(json) => json,
             Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
         };
-
-        match tokio::fs::File::create(video_dir.join(FILE_PROGRAM)).await {
-            Ok(mut f) => {
-                if let Err(e) = f.write_all(program_json.as_bytes()).await {
-                    return Err(CreateError::MetadataBackupFailed(e.to_string()));
-                }
-            }
-            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
-        }
+        write_json(video_dir.join(FILE_PROGRAM), program_json).await?;
 
         let metadata_json = match serde_json::to_string_pretty(program.metadata()) {
             Ok(json) => json,
             Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
         };
-
-        match tokio::fs::File::create(video_dir.join(FILE_PROGRAM_METADATA)).await {
-            Ok(mut f) => {
-                if let Err(e) = f.write_all(metadata_json.as_bytes()).await {
-                    return Err(CreateError::MetadataBackupFailed(e.to_string()));
-                }
-            }
-            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
-        }
+        write_json(video_dir.join(FILE_PROGRAM_METADATA), metadata_json).await?;
 
         let video_json = match serde_json::to_string_pretty(video) {
             Ok(json) => json,
             Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
         };
-
-        match tokio::fs::File::create(video_dir.join(FILE_VIDEO)).await {
-            Ok(mut f) => {
-                if let Err(e) = f.write_all(video_json.as_bytes()).await {
-                    return Err(CreateError::MetadataBackupFailed(e.to_string()));
-                }
-            }
-            Err(e) => return Err(CreateError::MetadataBackupFailed(e.to_string())),
-        }
+        write_json(video_dir.join(FILE_VIDEO), video_json).await?;
 
         Ok(())
     }
