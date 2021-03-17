@@ -35,3 +35,7 @@ path = "../dtvault-types"
 [dependencies.uuid]
 version = "0.8"
 features = ["v4"]
+
+[dependencies.chrono]
+version = "0.4"
+features = ["serde"]

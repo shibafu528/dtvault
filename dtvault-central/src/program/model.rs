@@ -1,5 +1,6 @@
-use crate::program::prost_convert::ToDurationExt;
+use crate::program::prost_convert::{ToDateTimeExt, ToDurationExt};
 use crate::program::ProgramKey;
+use chrono::{DateTime, Utc};
 use dtvault_types::shibafu528::dtvault as types;
 use dtvault_types::shibafu528::dtvault::central::persist_program::ExtendedEvent as PersistExtendedEvent;
 use dtvault_types::shibafu528::dtvault::central::{PersistChannel, PersistProgram, PersistService, PersistVideo};
@@ -150,7 +151,7 @@ pub struct Program {
     pub network_id: u16,
     pub service_id: u16,
     pub event_id: u16,
-    pub start_at: Duration,
+    pub start_at: DateTime<Utc>,
     duration: Duration,
     name: String,
     description: String,
@@ -176,7 +177,7 @@ impl Program {
             network_id: program.network_id as u16,
             service_id: program.service_id as u16,
             event_id: program.event_id as u16,
-            start_at: start_at.to_duration(),
+            start_at: start_at.to_utc(),
             duration: duration.to_duration(),
             name: program.name,
             description: program.description,
@@ -200,8 +201,8 @@ impl Program {
             service_id: self.service_id as u32,
             event_id: self.event_id as u32,
             start_at: Some(prost_types::Timestamp {
-                seconds: self.start_at.as_secs() as i64,
-                nanos: self.start_at.subsec_nanos() as i32,
+                seconds: self.start_at.timestamp(),
+                nanos: self.start_at.timestamp_subsec_nanos() as i32,
             }),
             duration: Some(self.duration.clone().into()),
             name: self.name.clone(),
@@ -245,7 +246,7 @@ impl Persistence<PersistProgram> for Program {
             network_id: persisted.network_id as u16,
             service_id: persisted.service_id as u16,
             event_id: persisted.event_id as u16,
-            start_at: start_at.to_duration(),
+            start_at: start_at.to_utc(),
             duration: duration.to_duration(),
             name: persisted.name,
             description: persisted.description,
@@ -278,8 +279,8 @@ impl Persistence<PersistProgram> for Program {
             service_id: self.service_id as u32,
             event_id: self.event_id as u32,
             start_at: Some(prost_types::Timestamp {
-                seconds: self.start_at.as_secs() as i64,
-                nanos: self.start_at.subsec_nanos() as i32,
+                seconds: self.start_at.timestamp(),
+                nanos: self.start_at.timestamp_subsec_nanos() as i32,
             }),
             duration: Some(self.duration.into()),
             name: self.name.clone(),
