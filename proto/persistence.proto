@@ -55,10 +55,17 @@ message PersistService {
     PersistChannel channel = 4;
 }
 
+message PersistProgramKey {
+    uint32 network_id = 1;
+    uint32 service_id = 2;
+    uint32 event_id = 3;
+    google.protobuf.Timestamp start_at = 4;
+}
+
 message PersistVideo {
     string video_id = 1;
     string provider_id = 2;
-    string program_id = 3;
+    PersistProgramKey program_id = 3;
     uint64 total_length = 4;
     string file_name = 5;
     string original_file_name = 6;

@@ -1,8 +1,11 @@
 use super::Program as StoredProgram;
+use crate::program::{MessageConversionError, Persistence};
+use dtvault_types::shibafu528::dtvault::central::PersistProgramKey;
 use dtvault_types::shibafu528::dtvault::{Program, ProgramIdentity};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ProgramKey {
     start_at: std::time::Duration,
     network_id: u16,
@@ -70,5 +73,33 @@ impl fmt::Display for ProgramKey {
             self.event_id,
             self.start_at.as_secs_f64()
         )
+    }
+}
+
+impl Persistence<PersistProgramKey> for ProgramKey {
+    fn from_persisted(persisted: PersistProgramKey) -> Result<Self, MessageConversionError> {
+        Ok(ProgramKey {
+            start_at: persisted
+                .start_at
+                .as_ref()
+                .map(|v| std::time::Duration::new(v.seconds as u64, v.nanos as u32))
+                .unwrap(),
+            network_id: persisted.network_id as u16,
+            service_id: persisted.service_id as u16,
+            event_id: persisted.event_id as u16,
+        })
+    }
+
+    fn persist(&self) -> PersistProgramKey {
+        let start_at = prost_types::Duration::from(self.start_at);
+        PersistProgramKey {
+            start_at: Some(prost_types::Timestamp {
+                seconds: start_at.seconds,
+                nanos: start_at.nanos,
+            }),
+            network_id: self.network_id as u32,
+            service_id: self.service_id as u32,
+            event_id: self.event_id as u32,
+        }
     }
 }

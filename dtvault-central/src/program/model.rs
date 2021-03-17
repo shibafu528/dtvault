@@ -1,5 +1,5 @@
 use crate::program::prost_convert::ToDurationExt;
-use crate::program::{CachedProgramFinder, ProgramKey};
+use crate::program::ProgramKey;
 use dtvault_types::shibafu528::dtvault as types;
 use dtvault_types::shibafu528::dtvault::central::persist_program::ExtendedEvent as PersistExtendedEvent;
 use dtvault_types::shibafu528::dtvault::central::{PersistChannel, PersistProgram, PersistService, PersistVideo};
@@ -339,8 +339,7 @@ pub struct Video {
     #[serde(with = "crate::serde::uuid")]
     pub id: Uuid,
     pub provider_id: String,
-    #[serde(with = "crate::serde::uuid")]
-    program_id: Uuid,
+    program_id: ProgramKey,
     total_length: u64,
     pub file_name: String,
     original_file_name: String,
@@ -357,7 +356,7 @@ impl Video {
         Video {
             id: Uuid::new_v4(),
             provider_id: video_header.provider_id.clone(),
-            program_id: program.id,
+            program_id: ProgramKey::from_stored_program(program),
             total_length: video_header.total_length,
             file_name: video_header.file_name.clone(),
             original_file_name: video_header.file_name.clone(),
@@ -367,10 +366,7 @@ impl Video {
         }
     }
 
-    pub fn exchangeable(&self, finder: &mut CachedProgramFinder) -> types::Video {
-        let program_id = finder
-            .find_by_uuid(&self.program_id)
-            .map(|p| ProgramKey::from_stored_program(&p).exchangeable());
+    pub fn exchangeable(&self) -> types::Video {
         types::Video {
             video_id: self
                 .id
@@ -378,7 +374,7 @@ impl Video {
                 .encode_lower(&mut Uuid::encode_buffer())
                 .to_string(),
             provider_id: self.provider_id.clone(),
-            program_id,
+            program_id: Some(self.program_id.exchangeable()),
             total_length: self.total_length,
             file_name: self.file_name.clone(),
             mime_type: self.mime_type.essence_str().to_string(),
@@ -394,10 +390,13 @@ impl Video {
 
 impl Persistence<PersistVideo> for Video {
     fn from_persisted(persisted: PersistVideo) -> Result<Self, MessageConversionError> {
+        let program_id = persisted
+            .program_id
+            .ok_or_else(|| MessageConversionError::MissingRequiredField("program_id".to_string()))?;
         Ok(Video {
             id: Uuid::parse_str(&persisted.video_id)?,
             provider_id: persisted.provider_id,
-            program_id: Uuid::parse_str(&persisted.program_id)?,
+            program_id: ProgramKey::from_persisted(program_id)?,
             total_length: persisted.total_length,
             file_name: persisted.file_name,
             original_file_name: persisted.original_file_name,
@@ -415,11 +414,7 @@ impl Persistence<PersistVideo> for Video {
                 .encode_lower(&mut Uuid::encode_buffer())
                 .to_string(),
             provider_id: self.provider_id.clone(),
-            program_id: self
-                .program_id
-                .to_hyphenated()
-                .encode_lower(&mut Uuid::encode_buffer())
-                .to_string(),
+            program_id: Some(self.program_id.persist()),
             total_length: self.total_length,
             file_name: self.file_name.clone(),
             original_file_name: self.original_file_name.clone(),

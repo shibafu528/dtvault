@@ -8,7 +8,7 @@ use fs2::FileExt;
 use prost::Message;
 use std::collections::BTreeMap;
 use std::io::Write;
-use std::sync::{Arc, RwLock, Weak};
+use std::sync::{Arc, RwLock};
 use uuid::Uuid;
 
 type ProgramStoreBackend = BTreeMap<ProgramKey, Arc<StoredProgram>>;
@@ -232,44 +232,5 @@ impl ProgramStore {
 
         file.unlock().unwrap();
         Ok(())
-    }
-}
-
-/// 設計ミスによって産まれた妥協の産物 はやくころしたい
-///
-/// この形式の索引はいずれ必要になるかもしれないが、これを使用しているVideo周りの諸問題を解決して一旦消滅させたい
-pub struct CachedProgramFinder {
-    store: Arc<ProgramStore>,
-    cache: BTreeMap<Uuid, Weak<StoredProgram>>,
-}
-
-impl CachedProgramFinder {
-    pub fn new(store: Arc<ProgramStore>) -> Self {
-        CachedProgramFinder {
-            store,
-            cache: BTreeMap::new(),
-        }
-    }
-
-    /// Program UUIDからProgramを検索する。検索結果はキャッシュされるため、同じものは高速に取得できる。
-    pub fn find_by_uuid(&mut self, id: &Uuid) -> Option<Arc<StoredProgram>> {
-        if let Some(p) = self.cache.get(id) {
-            let opt = p.upgrade();
-            if opt.is_some() {
-                return opt;
-            }
-        }
-        match self.store.all() {
-            Ok(programs) => {
-                for program in &programs {
-                    if program.id == *id {
-                        self.cache.insert(id.clone(), Arc::downgrade(program));
-                        return Some(program.clone());
-                    }
-                }
-                None
-            }
-            _ => None,
-        }
     }
 }

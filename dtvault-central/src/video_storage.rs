@@ -3,7 +3,7 @@ mod storage;
 
 pub use self::filesystem::*;
 pub use self::storage::*;
-use crate::program::{validate_program_id, CachedProgramFinder, ProgramKey, ProgramStore, Video, VideoWriteError};
+use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
 use dtvault_types::shibafu528::dtvault::storage::get_video_response::Datagram as GetVideoResponseDatagram;
 use dtvault_types::shibafu528::dtvault::storage::get_video_response::Part as GetVideoResponsePart;
@@ -136,9 +136,8 @@ impl VideoStorageServiceTrait for VideoStorageService {
         }
         println!("CreateVideo finish");
 
-        let mut cache = CachedProgramFinder::new(self.store.clone());
         Ok(Response::new(CreateVideoResponse {
-            video: Some(video.exchangeable(&mut cache)),
+            video: Some(video.exchangeable()),
         }))
     }
 
@@ -166,12 +165,11 @@ impl VideoStorageServiceTrait for VideoStorageService {
             Ok(s) => s,
             Err(e) => return handle_find_status_error(e),
         };
-        let mut cache = CachedProgramFinder::new(self.store.clone());
 
         let (mut tx, rx) = tokio::sync::mpsc::channel(1);
         tokio::spawn(async move {
             let header_res = GetVideoResponse {
-                part: Some(GetVideoResponsePart::Header(video.exchangeable(&mut cache))),
+                part: Some(GetVideoResponsePart::Header(video.exchangeable())),
             };
             if let Err(e) = tx.send(Ok(header_res)).await {
                 eprintln!("[[Error in task!]] {}", e);
