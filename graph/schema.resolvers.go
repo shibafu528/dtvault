@@ -5,8 +5,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"time"
@@ -18,10 +16,46 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+func (r *programResolver) Videos(ctx context.Context, program *model.Program) ([]*model.Video, error) {
+	conn, err := r.CentralAddr.Dial()
+	if err != nil {
+		return nil, gqlerror.Errorf("fail to dial: %v", err)
+	}
+	defer conn.Close()
+
+	client := types.NewProgramServiceClient(conn)
+	res, err := client.ListVideosByProgram(ctx, &types.ListVideosByProgramRequest{
+		ProgramId: &types.ProgramIdentity{
+			NetworkId: uint32(program.NetworkID),
+			ServiceId: uint32(program.ServiceID),
+			EventId:   uint32(program.EventID),
+			StartAt:   timestamppb.New(program.StartAt),
+		},
+	})
+	if err != nil {
+		return nil, gqlerror.Errorf("ListVideosByProgram: %v", err)
+	}
+
+	var videos []*model.Video
+	for _, video := range res.Videos {
+		videos = append(videos, &model.Video{
+			ID:          video.VideoId,
+			ProviderID:  video.ProviderId,
+			TotalLength: strconv.FormatUint(video.TotalLength, 10),
+			FileName:    video.FileName,
+			MimeType:    video.MimeType,
+			StorageID:   video.StorageId,
+			Prefix:      video.Prefix,
+		})
+	}
+
+	return videos, nil
+}
+
 func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) {
 	conn, err := r.CentralAddr.Dial()
 	if err != nil {
-		log.Fatalf("fail to dial: %v", err)
+		return nil, gqlerror.Errorf("fail to dial: %v", err)
 	}
 	defer conn.Close()
 
@@ -29,71 +63,12 @@ func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) 
 	req := types.ListProgramsRequest{}
 	res, err := client.ListPrograms(ctx, &req)
 	if err != nil {
-		log.Fatalf("ListPrograms: %v", err)
+		return nil, gqlerror.Errorf("ListPrograms: %v", err)
 	}
 
 	var programs []*model.Program
 	for _, program := range res.Programs {
-		res2, err := client.ListVideosByProgram(ctx, &types.ListVideosByProgramRequest{
-			ProgramId: &types.ProgramIdentity{
-				NetworkId: program.NetworkId,
-				ServiceId: program.ServiceId,
-				EventId:   program.EventId,
-				StartAt:   program.StartAt,
-			},
-		})
-		if err != nil {
-			log.Fatalf("ListVideosByProgram: %v", err)
-		}
-
-		ctype := model.ChannelType(program.Service.Channel.ChannelType.String())
-		var extended []*model.ExtendedEvent
-		for _, ext := range program.Extended {
-			extended = append(extended, &model.ExtendedEvent{
-				Key:   ext.Key,
-				Value: ext.Value,
-			})
-		}
-		var videos []*model.Video
-		for _, video := range res2.Videos {
-			videos = append(videos, &model.Video{
-				ID:          video.VideoId,
-				ProviderID:  video.ProviderId,
-				TotalLength: strconv.FormatUint(video.TotalLength, 10),
-				FileName:    video.FileName,
-				MimeType:    video.MimeType,
-				StorageID:   video.StorageId,
-				Prefix:      video.Prefix,
-			})
-		}
-
-		programs = append(programs, &model.Program{
-			ID:        fmt.Sprintf("%d-%d-%d-%d", program.NetworkId, program.ServiceId, program.EventId, program.StartAt.AsTime().Unix()),
-			NetworkID: int(program.NetworkId),
-			ServiceID: int(program.ServiceId),
-			EventID:   int(program.EventId),
-			StartAt:   program.StartAt.AsTime(),
-			Duration: &model.Duration{
-				Seconds: int(program.Duration.Seconds),
-				Nanos:   int(program.Duration.Nanos),
-			},
-			Name:        program.Name,
-			Description: program.Description,
-			Extended:    extended,
-			Service: &model.Service{
-				ID:        fmt.Sprintf("%d-%d", program.Service.NetworkId, program.Service.ServiceId),
-				NetworkID: int(program.Service.NetworkId),
-				ServiceID: int(program.Service.ServiceId),
-				Name:      program.Service.Name,
-				Channel: &model.Channel{
-					ID:          fmt.Sprintf("%s-%s", ctype, program.Service.Channel.Channel),
-					ChannelType: ctype,
-					Channel:     program.Service.Channel.Channel,
-					Name:        program.Service.Channel.Name,
-				},
-			},
-			Videos: videos,
-		})
+		programs = append(programs, model.NewProgramFromPb(program))
 	}
 
 	return programs, nil
@@ -112,7 +87,7 @@ func (r *queryResolver) Program(ctx context.Context, id string) (*model.Program,
 
 	conn, err := r.CentralAddr.Dial()
 	if err != nil {
-		log.Fatalf("fail to dial: %v", err)
+		return nil, gqlerror.Errorf("fail to dial: %v", err)
 	}
 	defer conn.Close()
 
@@ -125,77 +100,16 @@ func (r *queryResolver) Program(ctx context.Context, id string) (*model.Program,
 	}}
 	res, err := client.GetProgram(ctx, &req)
 	if err != nil {
-		log.Fatalf("GetProgram: %v", err)
+		return nil, gqlerror.Errorf("GetProgram: %v", err)
 	}
 
-	res2, err := client.ListVideosByProgram(ctx, &types.ListVideosByProgramRequest{
-		ProgramId: &types.ProgramIdentity{
-			NetworkId: res.Program.NetworkId,
-			ServiceId: res.Program.ServiceId,
-			EventId:   res.Program.EventId,
-			StartAt:   res.Program.StartAt,
-		},
-	})
-	if err != nil {
-		log.Fatalf("ListVideosByProgram: %v", err)
-	}
-
-	ctype := model.ChannelType(res.Program.Service.Channel.ChannelType.String())
-	var extended []*model.ExtendedEvent
-	for _, ext := range res.Program.Extended {
-		extended = append(extended, &model.ExtendedEvent{
-			Key:   ext.Key,
-			Value: ext.Value,
-		})
-	}
-	var videos []*model.Video
-	for _, video := range res2.Videos {
-		videos = append(videos, &model.Video{
-			ID:          video.VideoId,
-			ProviderID:  video.ProviderId,
-			TotalLength: strconv.FormatUint(video.TotalLength, 10),
-			FileName:    video.FileName,
-			MimeType:    video.MimeType,
-			StorageID:   video.StorageId,
-			Prefix:      video.Prefix,
-		})
-	}
-
-	program := &model.Program{
-		ID:        fmt.Sprintf("%d-%d-%d-%d", res.Program.NetworkId, res.Program.ServiceId, res.Program.EventId, res.Program.StartAt.AsTime().Unix()),
-		NetworkID: int(res.Program.NetworkId),
-		ServiceID: int(res.Program.ServiceId),
-		EventID:   int(res.Program.EventId),
-		StartAt:   res.Program.StartAt.AsTime(),
-		Duration: &model.Duration{
-			Seconds: int(res.Program.Duration.Seconds),
-			Nanos:   int(res.Program.Duration.Nanos),
-		},
-		Name:        res.Program.Name,
-		Description: res.Program.Description,
-		Extended:    extended,
-		Service: &model.Service{
-			ID:        fmt.Sprintf("%d-%d", res.Program.Service.NetworkId, res.Program.Service.ServiceId),
-			NetworkID: int(res.Program.Service.NetworkId),
-			ServiceID: int(res.Program.Service.ServiceId),
-			Name:      res.Program.Service.Name,
-			Channel: &model.Channel{
-				ID:          fmt.Sprintf("%s-%s", ctype, res.Program.Service.Channel.Channel),
-				ChannelType: ctype,
-				Channel:     res.Program.Service.Channel.Channel,
-				Name:        res.Program.Service.Channel.Name,
-			},
-		},
-		Videos: videos,
-	}
-
-	return program, nil
+	return model.NewProgramFromPb(res.Program), nil
 }
 
 func (r *queryResolver) Presets(ctx context.Context) ([]*model.Preset, error) {
 	conn, err := r.EncoderAddr.Dial()
 	if err != nil {
-		log.Fatalf("fail to dial: %v", err)
+		return nil, gqlerror.Errorf("fail to dial: %v", err)
 	}
 	defer conn.Close()
 
@@ -203,7 +117,7 @@ func (r *queryResolver) Presets(ctx context.Context) ([]*model.Preset, error) {
 	req := types.ListPresetsRequest{}
 	res, err := client.ListPresets(ctx, &req)
 	if err != nil {
-		log.Fatalf("ListPrograms: %v", err)
+		return nil, gqlerror.Errorf("ListPresets: %v", err)
 	}
 
 	var presets []*model.Preset
@@ -218,7 +132,11 @@ func (r *queryResolver) Presets(ctx context.Context) ([]*model.Preset, error) {
 	return presets, nil
 }
 
+// Program returns generated.ProgramResolver implementation.
+func (r *Resolver) Program() generated.ProgramResolver { return &programResolver{r} }
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+type programResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
