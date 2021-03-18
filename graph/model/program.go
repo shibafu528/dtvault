@@ -2,23 +2,8 @@ package model
 
 import (
 	"fmt"
-	"time"
-
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
 )
-
-type Program struct {
-	ID          string           `json:"id"`
-	NetworkID   int              `json:"networkId"`
-	ServiceID   int              `json:"serviceId"`
-	EventID     int              `json:"eventId"`
-	StartAt     time.Time        `json:"startAt"`
-	Duration    *Duration        `json:"duration"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	Extended    []*ExtendedEvent `json:"extended"`
-	Service     *Service         `json:"service"`
-}
 
 func NewProgramFromPb(p *types.Program) *Program {
 	ctype := ChannelType(p.Service.Channel.ChannelType.String())

@@ -16,7 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (r *programResolver) Videos(ctx context.Context, program *model.Program) ([]*model.Video, error) {
+func (r *programResolver) Videos(ctx context.Context, obj *model.Program) ([]*model.Video, error) {
 	conn, err := r.CentralAddr.Dial()
 	if err != nil {
 		return nil, gqlerror.Errorf("fail to dial: %v", err)
@@ -26,10 +26,10 @@ func (r *programResolver) Videos(ctx context.Context, program *model.Program) ([
 	client := types.NewProgramServiceClient(conn)
 	res, err := client.ListVideosByProgram(ctx, &types.ListVideosByProgramRequest{
 		ProgramId: &types.ProgramIdentity{
-			NetworkId: uint32(program.NetworkID),
-			ServiceId: uint32(program.ServiceID),
-			EventId:   uint32(program.EventID),
-			StartAt:   timestamppb.New(program.StartAt),
+			NetworkId: uint32(obj.NetworkID),
+			ServiceId: uint32(obj.ServiceID),
+			EventId:   uint32(obj.EventID),
+			StartAt:   timestamppb.New(obj.StartAt),
 		},
 	})
 	if err != nil {

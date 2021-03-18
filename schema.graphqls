@@ -20,7 +20,7 @@ type Program {
     description: String!
     extended: [ExtendedEvent]!
     service: Service!
-    videos: [Video!]!
+    videos: [Video!]! @goField(forceResolver: true)
 }
 
 type ExtendedEvent {
@@ -76,3 +76,6 @@ type Preset {
 }
 
 scalar Time
+
+directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITION
+    | FIELD_DEFINITION
