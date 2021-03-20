@@ -9,6 +9,7 @@ option go_package = "github.com/shibafu528/dtvault/types";
 service EncoderService {
     rpc EncodeVideo (stream EncodeVideoRequest) returns (stream EncodeVideoResponse);
     rpc ListPresets (ListPresetsRequest) returns (ListPresetsResponse);
+    rpc GenerateThumbnail (stream GenerateThumbnailRequest) returns (stream GenerateThumbnailResponse);
 }
 
 message EncodeVideoRequest {
@@ -42,4 +43,36 @@ message ListPresetsRequest {
 
 message ListPresetsResponse {
     repeated Preset presets = 2;
+}
+
+message GenerateThumbnailRequest {
+    enum OutputFormat {
+        OUTPUT_FORMAT_JPEG = 0;
+    }
+    message Header {
+        uint64 total_length = 1;
+        OutputFormat output_format = 2;
+        uint32 width = 3;
+        uint32 height = 4;
+        uint64 position = 5;
+    }
+    message Datagram {
+        uint64 offset = 1;
+        bytes payload = 2;
+    }
+    oneof part {
+        Header header = 1;
+        Datagram datagram = 2;
+    }
+}
+
+message GenerateThumbnailResponse {
+    message Datagram {
+        uint64 offset = 1;
+        bytes payload = 2;
+    }
+    oneof part {
+        // Header header = 1;
+        Datagram datagram = 2;
+    }
 }
