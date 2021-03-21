@@ -5,8 +5,13 @@ package graph
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
+	"io"
+	"log"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
@@ -50,6 +55,148 @@ func (r *programResolver) Videos(ctx context.Context, obj *model.Program) ([]*mo
 	}
 
 	return videos, nil
+}
+
+func (r *programResolver) Thumbnail(ctx context.Context, obj *model.Program) (*string, error) {
+	conn, err := r.CentralAddr.Dial()
+	if err != nil {
+		return nil, gqlerror.Errorf("fail to dial: %v", err)
+	}
+	defer conn.Close()
+
+	client := types.NewProgramServiceClient(conn)
+	res, err := client.ListVideosByProgram(ctx, &types.ListVideosByProgramRequest{
+		ProgramId: &types.ProgramIdentity{
+			NetworkId: uint32(obj.NetworkID),
+			ServiceId: uint32(obj.ServiceID),
+			EventId:   uint32(obj.EventID),
+			StartAt:   timestamppb.New(obj.StartAt),
+		},
+	})
+	if err != nil {
+		return nil, gqlerror.Errorf("ListVideosByProgram: %v", err)
+	}
+	if len(res.Videos) == 0 {
+		return nil, nil
+	}
+
+	econn, err := r.EncoderAddr.Dial()
+	if err != nil {
+		return nil, gqlerror.Errorf("fail to dial: %v", err)
+	}
+	defer econn.Close()
+
+	enc := types.NewEncoderServiceClient(econn)
+	stream, err := enc.GenerateThumbnail(ctx)
+	if err != nil {
+		return nil, gqlerror.Errorf("GenerateThumbnail: %v", err)
+	}
+
+	term := make(chan struct{})
+	done := make(chan struct{})
+	verr := make(chan error)
+	go func() {
+		defer close(verr)
+		defer close(done)
+
+		vss := types.NewVideoStorageServiceClient(conn)
+		req := &types.GetVideoRequest{VideoId: res.Videos[0].VideoId}
+		vstream, err := vss.GetVideo(ctx, req)
+		if err != nil {
+			verr <- err
+			return
+		}
+
+		for {
+			select {
+			case <-term:
+				err := vstream.CloseSend()
+				if err != nil {
+					verr <- err
+				}
+				return
+			default:
+			}
+
+			r, err := vstream.Recv()
+			if err == io.EOF {
+				break
+			}
+
+			switch part := r.Part.(type) {
+			case *types.GetVideoResponse_Header:
+				req := &types.GenerateThumbnailRequest_Header{
+					TotalLength:  part.Header.TotalLength,
+					OutputFormat: types.GenerateThumbnailRequest_OUTPUT_FORMAT_JPEG,
+					Width:        1280,
+					Height:       720,
+					Position:     30,
+				}
+				err = stream.Send(&types.GenerateThumbnailRequest{Part: &types.GenerateThumbnailRequest_Header_{Header: req}})
+				if err != nil {
+					verr <- err
+					return
+				}
+			case *types.GetVideoResponse_Datagram_:
+				req := &types.GenerateThumbnailRequest_Datagram{
+					Offset:  part.Datagram.Offset,
+					Payload: part.Datagram.Payload,
+				}
+				err = stream.Send(&types.GenerateThumbnailRequest{Part: &types.GenerateThumbnailRequest_Datagram_{Datagram: req}})
+				if err != nil {
+					verr <- err
+					return
+				}
+			default:
+				log.Printf("EncodeVideo: invalid response: %v", req)
+			}
+		}
+	}()
+
+	var blob []byte
+	for {
+		select {
+		case err := <-verr:
+			err2 := stream.CloseSend()
+			if err2 != nil {
+				log.Printf("GenerateThumbnail: %v", err2)
+			}
+			return nil, gqlerror.Errorf("GetVideo: %v", err)
+		default:
+		}
+
+		r, err := stream.Recv()
+		if err == io.EOF || (err != nil && strings.Contains(err.Error(), "Broken pipe")) {
+			// TODO: サーバ側の通信の切り方が間違っているようなので、一旦EOF以外でも終了扱いにしている。実際は err == io.EOF のみが正しい。
+			break
+		}
+		if err != nil {
+			close(term)
+			return nil, gqlerror.Errorf("GenerateThumbnail: %v", err)
+		}
+
+		switch part := r.Part.(type) {
+		case *types.GenerateThumbnailResponse_Datagram_:
+			blob = append(blob, part.Datagram.Payload...)
+		default:
+			log.Printf("GenerateThumbnail: invalid response: %v", r)
+		}
+	}
+	close(term)
+
+	err = <-verr
+	if err != nil {
+		log.Printf("GetVideo: %v", err)
+	}
+
+	<-done
+
+	if len(blob) == 0 {
+		return nil, nil
+	}
+
+	uri := fmt.Sprintf("data:image/jpeg;base64,%s", base64.StdEncoding.EncodeToString(blob))
+	return &uri, nil
 }
 
 func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) {

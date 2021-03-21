@@ -6,11 +6,13 @@ import {
     BreadcrumbItem,
     BreadcrumbLink,
     Container,
+    Flex,
     Text,
     Heading,
     CircularProgress,
     Center,
     Icon,
+    Image,
     Divider,
     Link,
     Box,
@@ -23,7 +25,7 @@ import {
 import { ChevronRightIcon, DownloadIcon } from '@chakra-ui/icons';
 import { FaFilm, FaPlayCircle } from 'react-icons/fa';
 import qs from 'qs';
-import { useProgramQuery } from '../generated/graphql';
+import { useProgramQuery, useProgramThumbnailQuery } from '../generated/graphql';
 import { parseAndFormatDate } from '../utils';
 
 type ProgramParams = {
@@ -33,6 +35,7 @@ type ProgramParams = {
 const Program = () => {
     const { programId } = useParams<ProgramParams>();
     const { loading, error, data } = useProgramQuery({ variables: { programId } });
+    const { error: thumbError, data: thumbData } = useProgramThumbnailQuery({ variables: { programId } });
     return (
         <Container maxW="container.lg" mt="1rem">
             <Breadcrumb spacing="8px" separator={<ChevronRightIcon color="gray.500" />} mb="1.25rem">
@@ -58,14 +61,22 @@ const Program = () => {
                         {' - '}
                         {data?.program?.service?.name}
                     </Text>
-                    <Text>{data?.program?.description}</Text>
-                    {data?.program?.extended?.map((ex) => (
-                        <Text mt="2">
-                            {ex?.key}
-                            <br />
-                            {ex?.value}
-                        </Text>
-                    ))}
+                    <Flex alignItems="flex-start">
+                        <Box flex={1}>
+                            <Text>{data?.program?.description}</Text>
+                            {data?.program?.extended?.map((ex) => (
+                                <Text mt="2">
+                                    {ex?.key}
+                                    <br />
+                                    {ex?.value}
+                                </Text>
+                            ))}
+                        </Box>
+                        {thumbError && <Text color="red.500">{JSON.stringify(thumbError)}</Text>}
+                        {thumbData?.program?.thumbnail && (
+                            <Image src={thumbData.program.thumbnail} width="320px" objectFit="contain" ml="3" />
+                        )}
+                    </Flex>
                     <Divider my="4" />
                     <Heading size="sm">動画一覧</Heading>
                     {data?.program?.videos &&

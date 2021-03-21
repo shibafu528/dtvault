@@ -21,6 +21,8 @@ type Program {
     extended: [ExtendedEvent]!
     service: Service!
     videos: [Video!]! @goField(forceResolver: true)
+    # JPEG in data URI
+    thumbnail: String @goField(forceResolver: true)
 }
 
 type ExtendedEvent {
