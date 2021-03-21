@@ -84,3 +84,7 @@ yarn generate
 ```
 yarn start
 ```
+
+## License
+
+Apache License 2.0 (see LICENSE file)
