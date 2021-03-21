@@ -294,7 +294,12 @@ impl EncoderServiceTrait for EncoderService {
                 let result = match part {
                     GenerateThumbnailRequestPart::Datagram(data) => match stdin_writer.write_all(&data.payload).await {
                         Ok(_) => Ok(()),
-                        Err(e) => Err(Status::internal(format!("IO error: {}", e))),
+                        Err(e) => {
+                            // TODO: ChildのExitStatusをノンブロックで確認した上でエラーにすべきか判断したいが、tokio 0.3以降に上げないとその手段がない
+                            // Err(Status::internal(format!("IO error: {}", e)))
+                            eprintln!("[[receiver]] IO error: {}", e);
+                            break;
+                        }
                     },
                     _ => Err(Status::invalid_argument("Invalid part: need datagram")),
                 };
@@ -354,6 +359,8 @@ impl EncoderServiceTrait for EncoderService {
                     eprintln!("[[Error in sender task!]] {}", e);
                 }
             }
+
+            eprintln!("[[Finish sender]]");
         });
 
         Ok(Response::new(Box::pin(rx)))

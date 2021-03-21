@@ -11,7 +11,6 @@ import (
 	"log"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
@@ -166,8 +165,7 @@ func (r *programResolver) Thumbnail(ctx context.Context, obj *model.Program) (*s
 		}
 
 		r, err := stream.Recv()
-		if err == io.EOF || (err != nil && strings.Contains(err.Error(), "Broken pipe")) {
-			// TODO: サーバ側の通信の切り方が間違っているようなので、一旦EOF以外でも終了扱いにしている。実際は err == io.EOF のみが正しい。
+		if err == io.EOF {
 			break
 		}
 		if err != nil {
