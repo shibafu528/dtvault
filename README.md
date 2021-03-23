@@ -54,13 +54,8 @@ cargo build --release
 protoc-gen-go と protoc-gen-go-grpc は go get で取得できます。  
 この辺はgRPCのチュートリアルを参考にすると良いです。
 
-`$PROTOBUF` は protocol-buffers/protobuf のリポジトリ。well-known typesのインクルードが必要というだけなので、適宜置き換え可能です。  
-そのうち、手順の省略のため本リポジトリ内に well-known types のファイルの複製を置いておくよう変更するかもしれません。
-
 ```
-protoc \
-  -I$PROTOBUF/src \
-  -Iproto \
+protoc -Iproto \
   --go_out=dtvault-types-golang \
   --go_opt=paths=source_relative \
   --go-grpc_out=dtvault-types-golang \
