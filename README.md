@@ -52,7 +52,7 @@ cargo build --release
 #### Generate protobuf codes
 実行前に protoc や protoc-gen-go などのインストールが必要です。  
 protoc-gen-go と protoc-gen-go-grpc は go get で取得できます。  
-この辺はgRPCのチュートリアルを参考にすると良いです。
+この辺は[gRPC公式サイトのガイド](https://grpc.io/docs/languages/go/quickstart/)を参考にすると良いです。
 
 ```
 protoc -Iproto \
