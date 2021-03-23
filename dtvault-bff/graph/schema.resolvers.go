@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/shibafu528/dtvault/dtvault-bff/graph/generated"
+	"github.com/shibafu528/dtvault/dtvault-bff/graph/model"
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
-	"github.com/shibafu528/dtvault/graph/generated"
-	"github.com/shibafu528/dtvault/graph/model"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
