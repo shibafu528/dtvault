@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package shibafu528.dtvault;
 
-import "program.proto";
+import "shibafu528/dtvault/program.proto";
 
 option go_package = "github.com/shibafu528/dtvault/types";
 

@@ -4,7 +4,7 @@ package shibafu528.dtvault;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "channel.proto";
+import "shibafu528/dtvault/channel.proto";
 
 option go_package = "github.com/shibafu528/dtvault/types";
 

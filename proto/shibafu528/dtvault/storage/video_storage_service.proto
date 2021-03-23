@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package shibafu528.dtvault.storage;
 
-import "program.proto";
-import "video.proto";
+import "shibafu528/dtvault/program.proto";
+import "shibafu528/dtvault/video.proto";
 
 option go_package = "github.com/shibafu528/dtvault/types";
 

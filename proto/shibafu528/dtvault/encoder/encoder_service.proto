@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package shibafu528.dtvault.encoder;
 
-import "preset.proto";
+import "shibafu528/dtvault/encoder/preset.proto";
 
 option go_package = "github.com/shibafu528/dtvault/types";
 

@@ -64,7 +64,7 @@ protoc \
   --go_out=dtvault-types-golang \
   --go_opt=paths=source_relative \
   --go-grpc_out=dtvault-types-golang \
-  --go-grpc_opt=paths=source_relative proto/*.proto
+  --go-grpc_opt=paths=source_relative proto/**/*.proto
 ```
 
 #### Generate GraphQL codes
