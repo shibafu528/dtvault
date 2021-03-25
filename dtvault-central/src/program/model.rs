@@ -349,7 +349,7 @@ pub struct Video {
     // TODO: 複数ストレージちゃんとやる時には考え直す
     #[serde(with = "crate::serde::uuid")]
     storage_id: Uuid,
-    storage_prefix: String,
+    pub storage_prefix: String,
 }
 
 impl Video {
@@ -386,6 +386,13 @@ impl Video {
                 .to_string(),
             prefix: self.storage_prefix.clone(),
         }
+    }
+
+    pub fn stringify_id(&self) -> String {
+        self.id
+            .to_hyphenated()
+            .encode_lower(&mut Uuid::encode_buffer())
+            .to_string()
     }
 }
 

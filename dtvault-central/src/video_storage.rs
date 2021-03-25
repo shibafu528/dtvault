@@ -17,6 +17,7 @@ use tokio::io::BufWriter;
 use tokio::prelude::*;
 use tokio::stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
+use uuid::Uuid;
 
 fn map_io_error(e: tokio::io::Error) -> Status {
     Status::internal(format!("IO error: {}", e))
@@ -156,12 +157,15 @@ impl VideoStorageServiceTrait for VideoStorageService {
             FindStatusError::ReadError(e) => Err(Status::aborted(format!("{}", e))),
         };
 
-        let video = match self.storage.find_header(&msg.video_id).await {
-            Ok(v) => v,
-            Err(e) => return handle_find_status_error(e),
-        };
+        let video_id =
+            Uuid::parse_str(&msg.video_id).map_err(|_| Status::invalid_argument("Invalid value: video_id"))?;
+        let video = match self.store.find_video(&video_id) {
+            Ok(Some(v)) => Ok(v),
+            Ok(None) => Err(Status::not_found("Video not found")),
+            Err(e) => Err(Status::aborted(format!("{}", e))),
+        }?;
 
-        let stream = match self.storage.find_bin(&msg.video_id).await {
+        let stream = match self.storage.find_bin(&video).await {
             Ok(s) => s,
             Err(e) => return handle_find_status_error(e),
         };

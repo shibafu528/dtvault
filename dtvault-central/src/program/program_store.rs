@@ -138,6 +138,11 @@ impl ProgramStore {
         })
     }
 
+    pub fn find_video(&self, id: &Uuid) -> Result<Option<Arc<StoredVideo>>, MutexPoisonError> {
+        let video = self.videos.read().map_err(|_| MutexPoisonError)?;
+        Ok(video.get(id).map(|v| v.clone()))
+    }
+
     pub fn find_videos(&self, ids: &[Uuid]) -> Result<Vec<Option<Arc<StoredVideo>>>, MutexPoisonError> {
         let video = self.videos.read().map_err(|_| MutexPoisonError)?;
         let mut result = vec![];
