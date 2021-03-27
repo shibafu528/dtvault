@@ -1,0 +1,14 @@
+# Sample of dtvault-central.config.toml
+
+# gRPC サーバ設定
+[server]
+# Listen するポート
+listen = "[::0]:50051"
+
+[database]
+data_dir = "/var/lib/dtvault/data"
+
+[storage]
+storage_dir = [
+    "/var/lib/dtvault/storage"
+]

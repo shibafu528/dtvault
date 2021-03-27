@@ -1,6 +1,6 @@
+use crate::config::Config;
 use crate::program::{Persistence, Program as StoredProgram};
 use crate::program::{ProgramKey, Video as StoredVideo};
-use crate::Config;
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as ResponseStatus;
 use dtvault_types::shibafu528::dtvault::central::PersistStore;
 use dtvault_types::shibafu528::dtvault::Program;
@@ -75,7 +75,7 @@ impl ProgramStore {
         let mut programs = ProgramStoreBackend::new();
         let mut videos = VideoStoreBackend::new();
 
-        let path = config.programs_file_path();
+        let path = config.database.programs_file_path();
         if path.is_file() {
             let bin = std::fs::read(path)?;
             let store = PersistStore::decode(&bin[..])?;
@@ -221,7 +221,7 @@ impl ProgramStore {
         let programs = self.programs.read().map_err(|_| MutexPoisonError)?;
         let videos = self.videos.read().map_err(|_| MutexPoisonError)?;
 
-        let path = self.config.programs_file_path();
+        let path = self.config.database.programs_file_path();
         let file = std::fs::File::create(path).unwrap();
         file.lock_exclusive().unwrap();
 

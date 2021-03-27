@@ -1,57 +1,52 @@
+mod config;
 mod program;
 mod serde;
 mod video_storage;
 
+use crate::config::Config;
 use crate::program::{ProgramService, ProgramStore};
 use crate::video_storage::{FileSystem, VideoStorageService};
 use ::serde::Deserialize;
 use dtvault_types::shibafu528::dtvault::central::program_service_server::ProgramServiceServer;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageServiceServer;
 use envy::Error as EnvyError;
-use std::path::{Path, PathBuf};
+use std::process::exit;
 use std::sync::Arc;
 use tonic::{transport::Server, Request, Status};
 
-// 持ち方は後で変えるかも
+const ENV_PREFIX: &str = "DTVAULT_CENTRAL_";
+
 #[derive(Deserialize, Debug)]
-pub struct Config {
-    data_dir: String,
-    storage_dir: String,
-}
-
-impl Config {
-    fn check_and_create_data_dir(&self) -> Result<(), std::io::Error> {
-        let data_dir = Path::new(&self.data_dir);
-        if !data_dir.is_dir() {
-            std::fs::create_dir_all(data_dir)?;
-        }
-        let storage_dir = Path::new(&self.storage_dir);
-        if !storage_dir.is_dir() {
-            std::fs::create_dir_all(storage_dir)?;
-        }
-        Ok(())
-    }
-
-    pub fn programs_file_path(&self) -> PathBuf {
-        PathBuf::from(self.data_dir.to_string()).join("programs.pb")
-    }
+struct Env {
+    config: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config: Config = envy::prefixed("DTVAULT_").from_env().unwrap_or_else(|err| match err {
-        EnvyError::MissingValue(key) => panic!("Missing environment variable `DTVAULT_{}`", key.to_uppercase()),
+    let env: Env = envy::prefixed(ENV_PREFIX).from_env().unwrap_or_else(|err| match err {
+        EnvyError::MissingValue(key) => {
+            eprintln!("Missing environment variable `{}{}`", ENV_PREFIX, key.to_uppercase());
+            exit(1)
+        }
         EnvyError::Custom(s) => panic!("{}", s),
     });
-    config.check_and_create_data_dir()?;
+    let config_str = std::fs::read_to_string(env.config).unwrap();
+    let config: Config = toml::from_str(&config_str).unwrap_or_else(|err| {
+        eprintln!("Error in reading config file: {}", err);
+        exit(1)
+    });
+    if let Err(err) = config.validate() {
+        eprintln!("Error in config file: {}", err);
+        exit(1)
+    }
     let config = Arc::new(config);
 
     let program_store = Arc::new(ProgramStore::new(config.clone())?);
     let program_service = ProgramService::new(program_store.clone());
-    let storage = Arc::new(FileSystem::new(config.storage_dir.to_string()));
+    let storage = Arc::new(FileSystem::new(config.storage.primary_storage_dir().to_string()));
     let video_storage_service = VideoStorageService::new(program_store.clone(), storage.clone());
 
-    let addr = "[::0]:50051".parse().unwrap();
+    let addr = config.server.listen.parse().unwrap();
     println!("Server listening on {}", addr);
 
     Server::builder()
