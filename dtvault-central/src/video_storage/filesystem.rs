@@ -2,11 +2,14 @@ use crate::program::{Program, Video};
 use crate::video_storage::storage::*;
 use fs2::FileExt;
 use pin_project::{pin_project, pinned_drop};
+use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::fs::File;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use uuid::Uuid;
 
 const FILE_PROGRAM: &str = "program.json";
 const FILE_PROGRAM_METADATA: &str = "metadata.json";
@@ -27,17 +30,51 @@ impl FileSystem {
         }
     }
 
-    fn take_shared_lock(&self) -> Result<FSSharedLock, UnavailableError> {
-        if !self.is_available() {
-            return Err(UnavailableError {
-                reason: "Can't create lock file".to_string(),
-            });
+    fn prepare_lock_file(&self, mut file: std::fs::File) -> Result<std::fs::File, UnavailableError> {
+        file.lock_exclusive().map_err(|e| UnavailableError {
+            reason: format!("Error in lock .dtvault_storage: {}", e),
+        })?;
+        let stat = file.metadata().map_err(|e| UnavailableError {
+            reason: format!("Error in read .dtvault_storage: {}", e),
+        })?;
+        if stat.len() == 0 {
+            let meta = Metadata::new();
+            match serde_json::to_string(&meta) {
+                Ok(meta_json) => match file.write_all(meta_json.as_bytes()) {
+                    Ok(_) => {
+                        eprintln!("Initialized storage `{}`: UUID = {}", self.root_dir, meta.id);
+                    }
+                    Err(e) => {
+                        return Err(UnavailableError {
+                            reason: format!("Error in writing storage metadata: {}", e),
+                        });
+                    }
+                },
+                Err(e) => {
+                    return Err(UnavailableError {
+                        reason: format!("Error in preparing storage metadata: {}", e),
+                    });
+                }
+            }
         }
+        file.unlock().map_err(|e| UnavailableError {
+            reason: format!("Error in unlock .dtvault_storage: {}", e),
+        })?;
 
-        let file = match std::fs::File::open(&self.lock_file_path) {
-            Ok(f) => f,
-            Err(e) => return Err(UnavailableError { reason: e.to_string() }),
-        };
+        Ok(file)
+    }
+
+    fn take_shared_lock(&self) -> Result<FSSharedLock, UnavailableError> {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .open(&self.lock_file_path)
+            .map_err(|e| UnavailableError {
+                reason: format!("Can't create lock file: {}", e),
+            })?;
+        let file = self.prepare_lock_file(file)?;
+
         if let Err(e) = file.lock_shared() {
             return Err(UnavailableError { reason: e.to_string() });
         }
@@ -102,11 +139,7 @@ impl FileSystem {
 #[tonic::async_trait]
 impl Storage<FSReader, FSWriter> for FileSystem {
     fn is_available(&self) -> bool {
-        if self.lock_file_path.exists() {
-            return true;
-        }
-
-        if let Ok(_) = std::fs::File::create(&self.lock_file_path) {
+        if let Ok(_) = self.take_shared_lock() {
             true
         } else {
             false
@@ -250,5 +283,17 @@ impl FSReader {
 impl AsyncRead for FSReader {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize, std::io::Error>> {
         AsyncRead::poll_read(self.project().file, cx, buf)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Metadata {
+    #[serde(with = "crate::serde::uuid")]
+    id: Uuid,
+}
+
+impl Metadata {
+    fn new() -> Self {
+        Metadata { id: Uuid::new_v4() }
     }
 }
