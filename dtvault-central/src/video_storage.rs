@@ -91,7 +91,11 @@ impl VideoStorageServiceTrait for VideoStorageService {
                 )));
             }
         }
-        let video = Video::from_exchanged(&program, header);
+        let mut video = Video::from_exchanged(&program, header);
+        match self.storage.storage_id().await {
+            Ok(id) => video.storage_id = id,
+            Err(e) => return Err(Status::aborted(format!("{}", e))),
+        }
         let writer = match self.storage.create(&program, &video).await {
             Ok(w) => Ok(w),
             Err(e) => Err(Status::aborted(format!("{}", e))),

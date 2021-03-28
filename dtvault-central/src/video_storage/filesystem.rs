@@ -161,6 +161,11 @@ impl Storage<FSReader, FSWriter> for FileSystem {
         }
     }
 
+    async fn storage_id(&self) -> Result<Uuid, UnavailableError> {
+        let lock = self.take_shared_lock()?;
+        Ok(lock.metadata.id)
+    }
+
     async fn find_bin(&self, video: &Video) -> Result<FSReader, FindStatusError> {
         let lock = self.take_shared_lock()?;
         if !verify_storage_id(video, &lock.metadata) {
