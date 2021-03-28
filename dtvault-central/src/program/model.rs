@@ -348,7 +348,7 @@ pub struct Video {
     mime_type: Mime,
     // TODO: 複数ストレージちゃんとやる時には考え直す
     #[serde(with = "crate::serde::uuid")]
-    storage_id: Uuid,
+    pub storage_id: Uuid,
     pub storage_prefix: String,
 }
 

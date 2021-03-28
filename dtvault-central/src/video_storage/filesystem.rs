@@ -3,7 +3,7 @@ use crate::video_storage::storage::*;
 use fs2::FileExt;
 use pin_project::{pin_project, pinned_drop};
 use serde::{Deserialize, Serialize};
-use std::io::Write;
+use std::io::{Read, Seek, Write};
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -30,7 +30,7 @@ impl FileSystem {
         }
     }
 
-    fn prepare_lock_file(&self, mut file: std::fs::File) -> Result<std::fs::File, UnavailableError> {
+    fn prepare_lock_file(&self, mut file: &std::fs::File) -> Result<(), UnavailableError> {
         let stat = file.metadata().map_err(|e| UnavailableError {
             reason: format!("Error in read .dtvault_storage: {}", e),
         })?;
@@ -42,9 +42,14 @@ impl FileSystem {
             let meta = Metadata::new();
             match serde_json::to_string(&meta) {
                 Ok(meta_json) => match file.write_all(meta_json.as_bytes()) {
-                    Ok(_) => {
-                        eprintln!("Initialized storage `{}`: UUID = {}", self.root_dir, meta.id);
-                    }
+                    Ok(_) => match file.seek(std::io::SeekFrom::Start(0)) {
+                        Ok(_) => eprintln!("Initialized storage `{}`: UUID = {}", self.root_dir, meta.id),
+                        Err(e) => {
+                            return Err(UnavailableError {
+                                reason: format!("Error in post-process write storage metadata: {}", e),
+                            });
+                        }
+                    },
                     Err(e) => {
                         return Err(UnavailableError {
                             reason: format!("Error in writing storage metadata: {}", e),
@@ -63,11 +68,11 @@ impl FileSystem {
             })?;
         }
 
-        Ok(file)
+        Ok(())
     }
 
     fn take_shared_lock(&self) -> Result<FSSharedLock, UnavailableError> {
-        let file = std::fs::OpenOptions::new()
+        let mut file = std::fs::OpenOptions::new()
             .create(true)
             .read(true)
             .write(true)
@@ -75,13 +80,21 @@ impl FileSystem {
             .map_err(|e| UnavailableError {
                 reason: format!("Can't create lock file: {}", e),
             })?;
-        let file = self.prepare_lock_file(file)?;
+        self.prepare_lock_file(&mut file)?;
 
         if let Err(e) = file.lock_shared() {
             return Err(UnavailableError { reason: e.to_string() });
         }
 
-        Ok(FSSharedLock::new(file))
+        let mut meta_json = String::new();
+        file.read_to_string(&mut meta_json).map_err(|e| UnavailableError {
+            reason: format!("Error in reading storage metadata: {}", e),
+        })?;
+        let meta = serde_json::from_str(&meta_json).map_err(|e| UnavailableError {
+            reason: format!("Error in reading storage metadata: {}", e),
+        })?;
+
+        Ok(FSSharedLock::new(file, meta))
     }
 
     // TODO: multi storage support
@@ -150,6 +163,14 @@ impl Storage<FSReader, FSWriter> for FileSystem {
 
     async fn find_bin(&self, video: &Video) -> Result<FSReader, FindStatusError> {
         let lock = self.take_shared_lock()?;
+        if !verify_storage_id(video, &lock.metadata) {
+            return Err(FindStatusError::Unavailable(UnavailableError {
+                reason: format!(
+                    "Storage ID mismatched (Required = {}, Mounted = {})",
+                    video.storage_id, lock.metadata.id
+                ),
+            }));
+        }
 
         let video_dir = self.find_video_dir(video);
         if !video_dir.is_dir() {
@@ -163,6 +184,14 @@ impl Storage<FSReader, FSWriter> for FileSystem {
 
     async fn create(&self, program: &Program, video: &Video) -> Result<FSWriter, CreateError> {
         let lock = self.take_shared_lock()?;
+        if !verify_storage_id(video, &lock.metadata) {
+            return Err(CreateError::Unavailable(UnavailableError {
+                reason: format!(
+                    "Storage ID mismatched (Required = {}, Mounted = {})",
+                    video.storage_id, lock.metadata.id
+                ),
+            }));
+        }
 
         let video_dir = self.create_video_dir(video).await?;
         self.store_metadata(&video_dir, program, video).await?;
@@ -181,12 +210,17 @@ impl Storage<FSReader, FSWriter> for FileSystem {
 
 pub struct FSSharedLock {
     file: std::fs::File,
+    metadata: Metadata,
     unlocked: bool,
 }
 
 impl FSSharedLock {
-    fn new(file: std::fs::File) -> Self {
-        FSSharedLock { file, unlocked: false }
+    fn new(file: std::fs::File, metadata: Metadata) -> Self {
+        FSSharedLock {
+            file,
+            metadata,
+            unlocked: false,
+        }
     }
 
     pub fn unlock(&mut self) -> std::io::Result<()> {
@@ -298,4 +332,8 @@ impl Metadata {
     fn new() -> Self {
         Metadata { id: Uuid::new_v4() }
     }
+}
+
+fn verify_storage_id(video: &Video, metadata: &Metadata) -> bool {
+    video.storage_id == metadata.id
 }
