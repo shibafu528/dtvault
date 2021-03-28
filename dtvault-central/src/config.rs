@@ -21,18 +21,6 @@ impl Config {
         }
         Ok(())
     }
-
-    #[allow(irrefutable_let_patterns)]
-    pub fn primary_storage_dir(&self) -> &str {
-        for storage in &self.storages {
-            if let Storage::FileSystem(fs) = storage {
-                return &fs.root_dir;
-            }
-        }
-
-        // 今のところは起動時の検査で1つ以上FileSystemがあるはずなのでOK
-        unreachable!()
-    }
 }
 
 #[derive(Deserialize, Debug)]
@@ -83,7 +71,7 @@ impl Storage {
 
 #[derive(Deserialize, Debug)]
 pub struct FileSystem {
-    root_dir: String,
+    pub root_dir: String,
 }
 
 impl FileSystem {

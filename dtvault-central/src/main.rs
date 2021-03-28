@@ -43,8 +43,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let program_store = Arc::new(ProgramStore::new(config.clone())?);
     let program_service = ProgramService::new(program_store.clone());
-    let storage = Arc::new(FileSystem::new(config.primary_storage_dir().to_string()));
-    let video_storage_service = VideoStorageService::new(program_store.clone(), storage.clone());
+
+    let mut storages = vec![];
+    for conf in &config.storages {
+        match conf {
+            config::Storage::FileSystem(fs) => storages.push(Arc::new(FileSystem::new(fs.root_dir.to_string()))),
+        }
+    }
+    let video_storage_service = VideoStorageService::new(program_store.clone(), storages);
 
     let addr = config.server.listen.parse().unwrap();
     println!("Server listening on {}", addr);

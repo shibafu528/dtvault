@@ -26,12 +26,16 @@ fn map_io_error(e: tokio::io::Error) -> Status {
 
 pub struct VideoStorageService {
     store: Arc<ProgramStore>,
-    storage: Arc<FileSystem>,
+    storages: Vec<Arc<FileSystem>>,
 }
 
 impl VideoStorageService {
-    pub fn new(store: Arc<ProgramStore>, storage: Arc<FileSystem>) -> Self {
-        VideoStorageService { store, storage }
+    pub fn new(store: Arc<ProgramStore>, storages: Vec<Arc<FileSystem>>) -> Self {
+        VideoStorageService { store, storages }
+    }
+
+    fn primary_storage(&self) -> Arc<FileSystem> {
+        self.storages.first().unwrap().clone()
     }
 }
 
@@ -93,11 +97,12 @@ impl VideoStorageServiceTrait for VideoStorageService {
             }
         }
         let mut video = Video::from_exchanged(&program, header);
-        match self.storage.storage_id().await {
+        let storage = self.primary_storage();
+        match storage.storage_id().await {
             Ok(id) => video.storage_id = id,
             Err(e) => return Err(Status::aborted(format!("{}", e))),
         }
-        let writer = match self.storage.create(&program, &video).await {
+        let writer = match storage.create(&program, &video).await {
             Ok(w) => Ok(w),
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }?;
@@ -170,7 +175,8 @@ impl VideoStorageServiceTrait for VideoStorageService {
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }?;
 
-        let stream = match self.storage.find_bin(&video).await {
+        let storage = self.primary_storage();
+        let stream = match storage.find_bin(&video).await {
             Ok(s) => s,
             Err(e) => return handle_find_status_error(e),
         };
