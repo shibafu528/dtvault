@@ -31,13 +31,14 @@ impl FileSystem {
     }
 
     fn prepare_lock_file(&self, mut file: std::fs::File) -> Result<std::fs::File, UnavailableError> {
-        file.lock_exclusive().map_err(|e| UnavailableError {
-            reason: format!("Error in lock .dtvault_storage: {}", e),
-        })?;
         let stat = file.metadata().map_err(|e| UnavailableError {
             reason: format!("Error in read .dtvault_storage: {}", e),
         })?;
         if stat.len() == 0 {
+            file.lock_exclusive().map_err(|e| UnavailableError {
+                reason: format!("Error in lock .dtvault_storage: {}", e),
+            })?;
+
             let meta = Metadata::new();
             match serde_json::to_string(&meta) {
                 Ok(meta_json) => match file.write_all(meta_json.as_bytes()) {
@@ -56,10 +57,11 @@ impl FileSystem {
                     });
                 }
             }
+
+            file.unlock().map_err(|e| UnavailableError {
+                reason: format!("Error in unlock .dtvault_storage: {}", e),
+            })?;
         }
-        file.unlock().map_err(|e| UnavailableError {
-            reason: format!("Error in unlock .dtvault_storage: {}", e),
-        })?;
 
         Ok(file)
     }
