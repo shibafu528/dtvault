@@ -40,10 +40,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         exit(1)
     }
     let config = Arc::new(config);
+    println!("{:?}", config.storages);
 
     let program_store = Arc::new(ProgramStore::new(config.clone())?);
     let program_service = ProgramService::new(program_store.clone());
-    let storage = Arc::new(FileSystem::new(config.storage.primary_storage_dir().to_string()));
+    let storage = Arc::new(FileSystem::new(config.primary_storage_dir().to_string()));
     let video_storage_service = VideoStorageService::new(program_store.clone(), storage.clone());
 
     let addr = config.server.listen.parse().unwrap();

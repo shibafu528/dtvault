@@ -5,15 +5,33 @@ use std::path::{Path, PathBuf};
 pub struct Config {
     pub server: Server,
     pub database: Database,
-    pub storage: Storage,
+    #[serde(default)]
+    pub storages: Vec<Storage>,
 }
 
 impl Config {
     pub fn validate(&self) -> Result<(), String> {
         self.server.validate()?;
         self.database.validate()?;
-        self.storage.validate()?;
+        if self.storages.is_empty() {
+            return Err("no storage found".to_string());
+        }
+        for storage in &self.storages {
+            storage.validate()?;
+        }
         Ok(())
+    }
+
+    #[allow(irrefutable_let_patterns)]
+    pub fn primary_storage_dir(&self) -> &str {
+        for storage in &self.storages {
+            if let Storage::FileSystem(fs) = storage {
+                return &fs.root_dir;
+            }
+        }
+
+        // 今のところは起動時の検査で1つ以上FileSystemがあるはずなのでOK
+        unreachable!()
     }
 }
 
@@ -50,27 +68,37 @@ impl Database {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct Storage {
-    storage_dir: Vec<String>,
+#[serde(tag = "driver")]
+pub enum Storage {
+    FileSystem(FileSystem),
 }
 
 impl Storage {
     pub fn validate(&self) -> Result<(), String> {
-        if self.storage_dir.is_empty() {
+        match self {
+            Storage::FileSystem(fs) => fs.validate(),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FileSystem {
+    root_dir: String,
+}
+
+impl FileSystem {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.root_dir.is_empty() {
             return Err("no storage_dir found".to_string());
         }
-        for dir in &self.storage_dir {
-            let dir = Path::new(dir);
-            if !dir.is_dir() {
-                if let Err(e) = std::fs::create_dir_all(dir) {
-                    return Err(e.to_string());
-                }
+
+        let root_dir = Path::new(&self.root_dir);
+        if !root_dir.is_dir() {
+            if let Err(e) = std::fs::create_dir_all(root_dir) {
+                return Err(e.to_string());
             }
         }
-        Ok(())
-    }
 
-    pub fn primary_storage_dir(&self) -> &str {
-        self.storage_dir.first().unwrap()
+        Ok(())
     }
 }
