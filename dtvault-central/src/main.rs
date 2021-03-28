@@ -40,7 +40,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         exit(1)
     }
     let config = Arc::new(config);
-    println!("{:?}", config.storages);
 
     let program_store = Arc::new(ProgramStore::new(config.clone())?);
     let program_service = ProgramService::new(program_store.clone());
