@@ -276,8 +276,9 @@ impl PinnedDrop for FSWriter {
     }
 }
 
+#[tonic::async_trait]
 impl StorageWriter for FSWriter {
-    fn finish(&mut self) -> Result<(), std::io::Error> {
+    async fn finish(&mut self) -> Result<(), std::io::Error> {
         if !self.finished {
             self.lock.unlock()?;
             self.finished = true;
@@ -285,7 +286,7 @@ impl StorageWriter for FSWriter {
         Ok(())
     }
 
-    fn abort(&mut self) -> Result<(), std::io::Error> {
+    async fn abort(&mut self) -> Result<(), std::io::Error> {
         if !self.finished {
             std::fs::remove_dir_all(&self.parent)?;
             self.finished = true;

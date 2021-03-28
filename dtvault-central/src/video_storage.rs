@@ -1,5 +1,6 @@
 mod filesystem;
 mod storage;
+mod tempfile;
 
 pub use self::filesystem::*;
 pub use self::storage::*;
@@ -136,7 +137,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
             },
         }?;
 
-        if let Err(e) = buf.into_inner().finish() {
+        if let Err(e) = buf.into_inner().finish().await {
             eprintln!("Error in StorageWriter.finish: {}", e);
         }
         println!("CreateVideo finish");

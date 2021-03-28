@@ -10,9 +10,10 @@ pub trait Storage<R: AsyncRead, W: AsyncWrite + StorageWriter> {
     async fn create(&self, program: &Program, video: &Video) -> Result<W, CreateError>;
 }
 
+#[tonic::async_trait]
 pub trait StorageWriter {
-    fn finish(&mut self) -> Result<(), std::io::Error>;
-    fn abort(&mut self) -> Result<(), std::io::Error>;
+    async fn finish(&mut self) -> Result<(), std::io::Error>;
+    async fn abort(&mut self) -> Result<(), std::io::Error>;
 }
 
 #[derive(thiserror::Error, Debug)]
