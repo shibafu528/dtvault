@@ -4,6 +4,7 @@ mod tempfile;
 
 pub use self::filesystem::*;
 pub use self::storage::*;
+pub use self::tempfile::*;
 use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
 use dtvault_types::shibafu528::dtvault::storage::get_video_response::Datagram as GetVideoResponseDatagram;
@@ -14,7 +15,6 @@ use dtvault_types::shibafu528::dtvault::storage::{
 };
 use std::pin::Pin;
 use std::sync::Arc;
-use tokio::io::BufWriter;
 use tokio::prelude::*;
 use tokio::stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status};
@@ -26,15 +26,15 @@ fn map_io_error(e: tokio::io::Error) -> Status {
 
 pub struct VideoStorageService {
     store: Arc<ProgramStore>,
-    storages: Vec<Arc<FileSystem>>,
+    storages: Vec<Arc<IStorage>>,
 }
 
 impl VideoStorageService {
-    pub fn new(store: Arc<ProgramStore>, storages: Vec<Arc<FileSystem>>) -> Self {
+    pub fn new(store: Arc<ProgramStore>, storages: Vec<Arc<IStorage>>) -> Self {
         VideoStorageService { store, storages }
     }
 
-    fn primary_storage(&self) -> Arc<FileSystem> {
+    fn primary_storage(&self) -> Arc<IStorage> {
         self.storages.first().unwrap().clone()
     }
 }
@@ -102,12 +102,11 @@ impl VideoStorageServiceTrait for VideoStorageService {
             Ok(id) => video.storage_id = id,
             Err(e) => return Err(Status::aborted(format!("{}", e))),
         }
-        let writer = match storage.create(&program, &video).await {
+        let mut writer = match storage.create(&program, &video).await {
             Ok(w) => Ok(w),
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }?;
 
-        let mut buf = BufWriter::new(writer);
         let mut wrote_length: u64 = 0;
         while let Some(msg) = stream.next().await {
             let msg = msg?;
@@ -121,7 +120,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
                     if data.offset < wrote_length {
                         return Err(Status::invalid_argument("Invalid offset: already received"));
                     }
-                    buf.write_all(&data.payload).await.map_err(map_io_error)?;
+                    writer.write_all(&data.payload).await.map_err(map_io_error)?;
                     wrote_length += data.payload.len() as u64;
                 }
                 _ => return Err(Status::invalid_argument("Invalid part: need datagram")),
@@ -142,7 +141,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
             },
         }?;
 
-        if let Err(e) = buf.into_inner().finish().await {
+        if let Err(e) = writer.as_mut().finish().await {
             eprintln!("Error in StorageWriter.finish: {}", e);
         }
         println!("CreateVideo finish");
@@ -176,7 +175,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
         }?;
 
         let storage = self.primary_storage();
-        let stream = match storage.find_bin(&video).await {
+        let mut reader = match storage.find_bin(&video).await {
             Ok(s) => s,
             Err(e) => return handle_find_status_error(e),
         };
@@ -191,7 +190,6 @@ impl VideoStorageServiceTrait for VideoStorageService {
                 return;
             };
 
-            let mut reader = tokio::io::BufReader::new(stream);
             let mut sent: usize = 0;
             loop {
                 let mut buffer = vec![0; 1024 * 1024];

@@ -5,7 +5,7 @@ mod video_storage;
 
 use crate::config::Config;
 use crate::program::{ProgramService, ProgramStore};
-use crate::video_storage::{FileSystem, VideoStorageService};
+use crate::video_storage::{FileSystem, IStorage, VideoStorageService};
 use ::serde::Deserialize;
 use dtvault_types::shibafu528::dtvault::central::program_service_server::ProgramServiceServer;
 use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::VideoStorageServiceServer;
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let program_store = Arc::new(ProgramStore::new(config.clone())?);
     let program_service = ProgramService::new(program_store.clone());
 
-    let mut storages = vec![];
+    let mut storages = Vec::<Arc<IStorage>>::new();
     for conf in &config.storages {
         match conf {
             config::Storage::FileSystem(fs) => storages.push(Arc::new(FileSystem::new(fs.root_dir.to_string()))),

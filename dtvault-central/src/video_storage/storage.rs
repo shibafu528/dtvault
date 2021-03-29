@@ -1,19 +1,25 @@
 use crate::program::{Program, Video};
+use std::pin::Pin;
 use tokio::io::{AsyncRead, AsyncWrite};
 use uuid::Uuid;
 
-#[tonic::async_trait]
-pub trait Storage<R: AsyncRead, W: AsyncWrite + StorageWriter> {
-    fn is_available(&self) -> bool;
-    async fn storage_id(&self) -> Result<Uuid, UnavailableError>;
-    async fn find_bin(&self, video: &Video) -> Result<R, FindStatusError>;
-    async fn create(&self, program: &Program, video: &Video) -> Result<W, CreateError>;
-}
+pub type IStorage = dyn Storage + Send + Sync;
 
 #[tonic::async_trait]
-pub trait StorageWriter {
-    async fn finish(&mut self) -> Result<(), std::io::Error>;
-    async fn abort(&mut self) -> Result<(), std::io::Error>;
+pub trait Storage {
+    fn is_available(&self) -> bool;
+    async fn storage_id(&self) -> Result<Uuid, UnavailableError>;
+    async fn find_bin(&self, video: &Video) -> Result<Pin<Box<dyn StorageReader + Send>>, FindStatusError>;
+    async fn create(&self, program: &Program, video: &Video)
+        -> Result<Pin<Box<dyn StorageWriter + Send>>, CreateError>;
+}
+
+pub trait StorageReader: AsyncRead {}
+
+#[tonic::async_trait]
+pub trait StorageWriter: AsyncWrite {
+    async fn finish(self: Pin<&mut Self>) -> Result<(), std::io::Error>;
+    async fn abort(self: Pin<&mut Self>) -> Result<(), std::io::Error>;
 }
 
 #[derive(thiserror::Error, Debug)]

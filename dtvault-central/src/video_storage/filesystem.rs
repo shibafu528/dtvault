@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::fs::File;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 use uuid::Uuid;
 
 const FILE_PROGRAM: &str = "program.json";
@@ -152,7 +152,7 @@ impl FileSystem {
 }
 
 #[tonic::async_trait]
-impl Storage<FSReader, FSWriter> for FileSystem {
+impl Storage for FileSystem {
     fn is_available(&self) -> bool {
         if let Ok(_) = self.take_shared_lock() {
             true
@@ -166,7 +166,7 @@ impl Storage<FSReader, FSWriter> for FileSystem {
         Ok(lock.metadata.id)
     }
 
-    async fn find_bin(&self, video: &Video) -> Result<FSReader, FindStatusError> {
+    async fn find_bin(&self, video: &Video) -> Result<Pin<Box<dyn StorageReader + Send>>, FindStatusError> {
         let lock = self.take_shared_lock()?;
         if !verify_storage_id(video, &lock.metadata) {
             return Err(FindStatusError::Unavailable(UnavailableError {
@@ -184,10 +184,14 @@ impl Storage<FSReader, FSWriter> for FileSystem {
         let path = video_dir.as_path().join(&video.file_name);
         let file = tokio::fs::File::open(path).await?;
 
-        Ok(FSReader::new(file, lock))
+        Ok(Box::pin(FSReader::new(file, lock)))
     }
 
-    async fn create(&self, program: &Program, video: &Video) -> Result<FSWriter, CreateError> {
+    async fn create(
+        &self,
+        program: &Program,
+        video: &Video,
+    ) -> Result<Pin<Box<dyn StorageWriter + Send>>, CreateError> {
         let lock = self.take_shared_lock()?;
         if !verify_storage_id(video, &lock.metadata) {
             return Err(CreateError::Unavailable(UnavailableError {
@@ -209,7 +213,7 @@ impl Storage<FSReader, FSWriter> for FileSystem {
             }
         };
 
-        Ok(FSWriter::new(file, video_dir, lock))
+        Ok(Box::pin(FSWriter::new(file, video_dir, lock)))
     }
 }
 
@@ -250,7 +254,7 @@ impl Drop for FSSharedLock {
 #[pin_project(PinnedDrop)]
 pub struct FSWriter {
     #[pin]
-    file: File,
+    writer: BufWriter<File>,
     parent: PathBuf,
     lock: FSSharedLock,
     finished: bool,
@@ -259,7 +263,7 @@ pub struct FSWriter {
 impl FSWriter {
     fn new(file: File, parent: PathBuf, lock: FSSharedLock) -> Self {
         FSWriter {
-            file,
+            writer: BufWriter::new(file),
             parent,
             lock,
             finished: false,
@@ -278,18 +282,20 @@ impl PinnedDrop for FSWriter {
 
 #[tonic::async_trait]
 impl StorageWriter for FSWriter {
-    async fn finish(&mut self) -> Result<(), std::io::Error> {
-        if !self.finished {
-            self.lock.unlock()?;
-            self.finished = true;
+    async fn finish(self: Pin<&mut Self>) -> Result<(), std::io::Error> {
+        let this = self.project();
+        if !*this.finished {
+            this.lock.unlock()?;
+            *this.finished = true;
         }
         Ok(())
     }
 
-    async fn abort(&mut self) -> Result<(), std::io::Error> {
-        if !self.finished {
-            std::fs::remove_dir_all(&self.parent)?;
-            self.finished = true;
+    async fn abort(self: Pin<&mut Self>) -> Result<(), std::io::Error> {
+        let this = self.project();
+        if !*this.finished {
+            std::fs::remove_dir_all(&this.parent)?;
+            *this.finished = true;
         }
         Ok(())
     }
@@ -297,36 +303,41 @@ impl StorageWriter for FSWriter {
 
 impl AsyncWrite for FSWriter {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<Result<usize, std::io::Error>> {
-        AsyncWrite::poll_write(self.project().file, cx, buf)
+        AsyncWrite::poll_write(self.project().writer, cx, buf)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        AsyncWrite::poll_flush(self.project().file, cx)
+        AsyncWrite::poll_flush(self.project().writer, cx)
     }
 
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        AsyncWrite::poll_shutdown(self.project().file, cx)
+        AsyncWrite::poll_shutdown(self.project().writer, cx)
     }
 }
 
 #[pin_project]
 pub struct FSReader {
     #[pin]
-    file: File,
+    reader: BufReader<File>,
     lock: FSSharedLock,
 }
 
 impl FSReader {
     fn new(file: File, lock: FSSharedLock) -> Self {
-        FSReader { file, lock }
+        FSReader {
+            reader: BufReader::new(file),
+            lock,
+        }
     }
 }
 
 impl AsyncRead for FSReader {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize, std::io::Error>> {
-        AsyncRead::poll_read(self.project().file, cx, buf)
+        AsyncRead::poll_read(self.project().reader, cx, buf)
     }
 }
+
+impl StorageReader for FSReader {}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Metadata {
