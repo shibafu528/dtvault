@@ -37,6 +37,17 @@ impl VideoStorageService {
     fn primary_storage(&self) -> Arc<IStorage> {
         self.storages.first().unwrap().clone()
     }
+
+    async fn find_storage_by_id(&self, storage_id: &Uuid) -> Option<Arc<IStorage>> {
+        for storage in &self.storages {
+            if let Ok(id) = storage.storage_id().await {
+                if id == *storage_id {
+                    return Some(storage.clone());
+                }
+            }
+        }
+        None
+    }
 }
 
 #[tonic::async_trait]
@@ -174,7 +185,14 @@ impl VideoStorageServiceTrait for VideoStorageService {
             Err(e) => Err(Status::aborted(format!("{}", e))),
         }?;
 
-        let storage = self.primary_storage();
+        let storage = match self.find_storage_by_id(&video.storage_id).await {
+            Some(s) => s,
+            None => {
+                return Err(Status::unavailable(
+                    "Target storage is temporarily unavailable or not found",
+                ))
+            }
+        };
         let mut reader = match storage.find_bin(&video).await {
             Ok(s) => s,
             Err(e) => return handle_find_status_error(e),
