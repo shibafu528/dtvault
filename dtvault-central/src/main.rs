@@ -48,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for conf in &config.storages {
         match conf {
             config::Storage::FileSystem(fs) => storages.push(Arc::new(FileSystem::new(fs.root_dir.to_string()))),
+            config::Storage::Tempfile => storages.push(Arc::new(video_storage::Tempfile::new())),
         }
     }
     let video_storage_service = VideoStorageService::new(program_store.clone(), storages);

@@ -59,12 +59,14 @@ impl Database {
 #[serde(tag = "driver")]
 pub enum Storage {
     FileSystem(FileSystem),
+    Tempfile,
 }
 
 impl Storage {
     pub fn validate(&self) -> Result<(), String> {
         match self {
             Storage::FileSystem(fs) => fs.validate(),
+            Storage::Tempfile => Ok(()),
         }
     }
 }
