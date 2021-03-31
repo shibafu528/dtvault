@@ -1,11 +1,13 @@
 mod filesystem;
 mod storage;
 mod tempfile;
+mod validator;
 
 pub use self::filesystem::*;
 pub use self::storage::*;
 pub use self::tempfile::*;
 use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
+use crate::video_storage::validator::validate_file_name;
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
 use dtvault_types::shibafu528::dtvault::storage::get_video_response::Datagram as GetVideoResponseDatagram;
 use dtvault_types::shibafu528::dtvault::storage::get_video_response::Part as GetVideoResponsePart;
@@ -94,6 +96,10 @@ impl VideoStorageServiceTrait for VideoStorageService {
             }
             None => Err(Status::invalid_argument("Empty stream")),
         }?;
+
+        if let Err(e) = validate_file_name(&header.file_name) {
+            return Err(Status::invalid_argument(e));
+        }
 
         let videos = match self.store.find_videos(program.video_ids()) {
             Ok(v) => Ok(v),
