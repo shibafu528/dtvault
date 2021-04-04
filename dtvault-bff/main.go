@@ -10,7 +10,7 @@ import (
 	"github.com/shibafu528/dtvault/dtvault-bff/graph"
 	"github.com/shibafu528/dtvault/dtvault-bff/graph/generated"
 	"github.com/shibafu528/dtvault/dtvault-bff/grpcaddr"
-	types "github.com/shibafu528/dtvault/dtvault-types-golang"
+	"github.com/shibafu528/dtvault/dtvault-types-golang/storage"
 	"io"
 	"log"
 	"net/http"
@@ -99,8 +99,8 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	vssc := types.NewVideoStorageServiceClient(conn)
-	stream, err := vssc.GetVideo(ctx, &types.GetVideoRequest{VideoId: id})
+	vssc := storage.NewVideoStorageServiceClient(conn)
+	stream, err := vssc.GetVideo(ctx, &storage.GetVideoRequest{VideoId: id})
 	if err != nil {
 		log.Printf("GetVideo: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -122,9 +122,9 @@ func streamHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		switch part := res.Part.(type) {
-		case *types.GetVideoResponse_Header:
+		case *storage.GetVideoResponse_Header:
 			e.SetVideo(part.Header)
-		case *types.GetVideoResponse_Datagram_:
+		case *storage.GetVideoResponse_Datagram_:
 			emit <- part.Datagram.Payload
 		default:
 			log.Printf("GetVideo: invalid response: %v", res)

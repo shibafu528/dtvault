@@ -1,7 +1,7 @@
 package emitter
 
 import (
-	"github.com/shibafu528/dtvault/dtvault-types-golang"
+	types "github.com/shibafu528/dtvault/dtvault-types-golang"
 	"net/http"
 )
 

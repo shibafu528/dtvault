@@ -7,6 +7,9 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/shibafu528/dtvault/dtvault-types-golang/central"
+	"github.com/shibafu528/dtvault/dtvault-types-golang/encoder"
+	"github.com/shibafu528/dtvault/dtvault-types-golang/storage"
 	"io"
 	"log"
 	"regexp"
@@ -27,8 +30,8 @@ func (r *programResolver) Videos(ctx context.Context, obj *model.Program) ([]*mo
 	}
 	defer conn.Close()
 
-	client := types.NewProgramServiceClient(conn)
-	res, err := client.ListVideosByProgram(ctx, &types.ListVideosByProgramRequest{
+	client := central.NewProgramServiceClient(conn)
+	res, err := client.ListVideosByProgram(ctx, &central.ListVideosByProgramRequest{
 		ProgramId: &types.ProgramIdentity{
 			NetworkId: uint32(obj.NetworkID),
 			ServiceId: uint32(obj.ServiceID),
@@ -63,8 +66,8 @@ func (r *programResolver) Thumbnail(ctx context.Context, obj *model.Program) (*s
 	}
 	defer conn.Close()
 
-	client := types.NewProgramServiceClient(conn)
-	res, err := client.ListVideosByProgram(ctx, &types.ListVideosByProgramRequest{
+	client := central.NewProgramServiceClient(conn)
+	res, err := client.ListVideosByProgram(ctx, &central.ListVideosByProgramRequest{
 		ProgramId: &types.ProgramIdentity{
 			NetworkId: uint32(obj.NetworkID),
 			ServiceId: uint32(obj.ServiceID),
@@ -85,7 +88,7 @@ func (r *programResolver) Thumbnail(ctx context.Context, obj *model.Program) (*s
 	}
 	defer econn.Close()
 
-	enc := types.NewEncoderServiceClient(econn)
+	enc := encoder.NewEncoderServiceClient(econn)
 	stream, err := enc.GenerateThumbnail(ctx)
 	if err != nil {
 		return nil, gqlerror.Errorf("GenerateThumbnail: %v", err)
@@ -98,8 +101,8 @@ func (r *programResolver) Thumbnail(ctx context.Context, obj *model.Program) (*s
 		defer close(verr)
 		defer close(done)
 
-		vss := types.NewVideoStorageServiceClient(conn)
-		req := &types.GetVideoRequest{VideoId: res.Videos[0].VideoId}
+		vss := storage.NewVideoStorageServiceClient(conn)
+		req := &storage.GetVideoRequest{VideoId: res.Videos[0].VideoId}
 		vstream, err := vss.GetVideo(ctx, req)
 		if err != nil {
 			verr <- err
@@ -123,25 +126,25 @@ func (r *programResolver) Thumbnail(ctx context.Context, obj *model.Program) (*s
 			}
 
 			switch part := r.Part.(type) {
-			case *types.GetVideoResponse_Header:
-				req := &types.GenerateThumbnailRequest_Header{
+			case *storage.GetVideoResponse_Header:
+				req := &encoder.GenerateThumbnailRequest_Header{
 					TotalLength:  part.Header.TotalLength,
-					OutputFormat: types.GenerateThumbnailRequest_OUTPUT_FORMAT_JPEG,
+					OutputFormat: encoder.GenerateThumbnailRequest_OUTPUT_FORMAT_JPEG,
 					Width:        1280,
 					Height:       720,
 					Position:     30,
 				}
-				err = stream.Send(&types.GenerateThumbnailRequest{Part: &types.GenerateThumbnailRequest_Header_{Header: req}})
+				err = stream.Send(&encoder.GenerateThumbnailRequest{Part: &encoder.GenerateThumbnailRequest_Header_{Header: req}})
 				if err != nil {
 					verr <- err
 					return
 				}
-			case *types.GetVideoResponse_Datagram_:
-				req := &types.GenerateThumbnailRequest_Datagram{
+			case *storage.GetVideoResponse_Datagram_:
+				req := &encoder.GenerateThumbnailRequest_Datagram{
 					Offset:  part.Datagram.Offset,
 					Payload: part.Datagram.Payload,
 				}
-				err = stream.Send(&types.GenerateThumbnailRequest{Part: &types.GenerateThumbnailRequest_Datagram_{Datagram: req}})
+				err = stream.Send(&encoder.GenerateThumbnailRequest{Part: &encoder.GenerateThumbnailRequest_Datagram_{Datagram: req}})
 				if err != nil {
 					verr <- err
 					return
@@ -174,7 +177,7 @@ func (r *programResolver) Thumbnail(ctx context.Context, obj *model.Program) (*s
 		}
 
 		switch part := r.Part.(type) {
-		case *types.GenerateThumbnailResponse_Datagram_:
+		case *encoder.GenerateThumbnailResponse_Datagram_:
 			blob = append(blob, part.Datagram.Payload...)
 		default:
 			log.Printf("GenerateThumbnail: invalid response: %v", r)
@@ -204,8 +207,8 @@ func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) 
 	}
 	defer conn.Close()
 
-	client := types.NewProgramServiceClient(conn)
-	req := types.ListProgramsRequest{}
+	client := central.NewProgramServiceClient(conn)
+	req := central.ListProgramsRequest{}
 	res, err := client.ListPrograms(ctx, &req)
 	if err != nil {
 		return nil, gqlerror.Errorf("ListPrograms: %v", err)
@@ -236,8 +239,8 @@ func (r *queryResolver) Program(ctx context.Context, id string) (*model.Program,
 	}
 	defer conn.Close()
 
-	client := types.NewProgramServiceClient(conn)
-	req := types.GetProgramRequest{ProgramId: &types.ProgramIdentity{
+	client := central.NewProgramServiceClient(conn)
+	req := central.GetProgramRequest{ProgramId: &types.ProgramIdentity{
 		NetworkId: uint32(nid),
 		ServiceId: uint32(sid),
 		EventId:   uint32(eid),
@@ -258,8 +261,8 @@ func (r *queryResolver) Presets(ctx context.Context) ([]*model.Preset, error) {
 	}
 	defer conn.Close()
 
-	client := types.NewEncoderServiceClient(conn)
-	req := types.ListPresetsRequest{}
+	client := encoder.NewEncoderServiceClient(conn)
+	req := encoder.ListPresetsRequest{}
 	res, err := client.ListPresets(ctx, &req)
 	if err != nil {
 		return nil, gqlerror.Errorf("ListPresets: %v", err)

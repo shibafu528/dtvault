@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package shibafu528.dtvault.encoder;
 
-option go_package = "github.com/shibafu528/dtvault/types";
+option go_package = "github.com/shibafu528/dtvault/dtvault-types-golang/encoder";
 
 message Preset {
   string preset_id = 1;

@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/shibafu528/dtvault/dtvault-bff/grpcaddr"
-	"github.com/shibafu528/dtvault/dtvault-types-golang"
+	types "github.com/shibafu528/dtvault/dtvault-types-golang"
+	"github.com/shibafu528/dtvault/dtvault-types-golang/encoder"
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc"
 	"io"
@@ -16,7 +17,7 @@ import (
 type Encoder struct {
 	conn   *grpc.ClientConn
 	video  *types.Video
-	preset *types.Preset
+	preset *encoder.Preset
 }
 
 var ErrPresetNotFound = errors.New("preset not found")
@@ -30,13 +31,13 @@ func NewEncoder(encoderAddr *grpcaddr.Address, presetId string) (*Encoder, error
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := types.NewEncoderServiceClient(conn)
-	res, err := client.ListPresets(ctx, &types.ListPresetsRequest{})
+	client := encoder.NewEncoderServiceClient(conn)
+	res, err := client.ListPresets(ctx, &encoder.ListPresetsRequest{})
 	if err != nil {
 		return nil, xerrors.Errorf("error in call EncoderService.ListPresets(): %+w", err)
 	}
 
-	var preset *types.Preset
+	var preset *encoder.Preset
 	for _, p := range res.Presets {
 		if p.PresetId == presetId {
 			preset = p
@@ -58,7 +59,7 @@ func (e *Encoder) Run(in <-chan []byte, w http.ResponseWriter) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := types.NewEncoderServiceClient(e.conn)
+	client := encoder.NewEncoderServiceClient(e.conn)
 	stream, err := client.EncodeVideo(ctx)
 	if err != nil {
 		log.Printf("EncodeVideo connection error: %v", err)
@@ -83,7 +84,7 @@ func (e *Encoder) Run(in <-chan []byte, w http.ResponseWriter) {
 			}
 
 			switch part := out.Part.(type) {
-			case *types.EncodeVideoResponse_Datagram_:
+			case *encoder.EncodeVideoResponse_Datagram_:
 				if !init {
 					w.Header().Set("Content-Type", "video/mp4")
 					init = true
@@ -100,11 +101,11 @@ func (e *Encoder) Run(in <-chan []byte, w http.ResponseWriter) {
 	sent := uint64(0)
 	for i := range in {
 		if !init {
-			dg := &types.EncodeVideoRequest_Header{
+			dg := &encoder.EncodeVideoRequest_Header{
 				TotalLength: e.video.TotalLength,
 				PresetId:    e.preset.PresetId,
 			}
-			err = stream.Send(&types.EncodeVideoRequest{Part: &types.EncodeVideoRequest_Header_{Header: dg}})
+			err = stream.Send(&encoder.EncodeVideoRequest{Part: &encoder.EncodeVideoRequest_Header_{Header: dg}})
 			if err != nil {
 				log.Printf("EncodeVideo send header error: %v", err)
 				w.WriteHeader(http.StatusInternalServerError)
@@ -115,11 +116,11 @@ func (e *Encoder) Run(in <-chan []byte, w http.ResponseWriter) {
 			init = true
 		}
 
-		dg := &types.EncodeVideoRequest_Datagram{
+		dg := &encoder.EncodeVideoRequest_Datagram{
 			Offset:  sent,
 			Payload: i,
 		}
-		err = stream.Send(&types.EncodeVideoRequest{Part: &types.EncodeVideoRequest_Datagram_{Datagram: dg}})
+		err = stream.Send(&encoder.EncodeVideoRequest{Part: &encoder.EncodeVideoRequest_Datagram_{Datagram: dg}})
 		if err != nil {
 			log.Printf("EncodeVideo send datagram error: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)

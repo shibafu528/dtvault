@@ -57,9 +57,10 @@ protoc-gen-go と protoc-gen-go-grpc は go get で取得できます。
 ```
 protoc -Iproto \
   --go_out=dtvault-types-golang \
-  --go_opt=paths=source_relative \
+  --go_opt=module=github.com/shibafu528/dtvault/dtvault-types-golang \
   --go-grpc_out=dtvault-types-golang \
-  --go-grpc_opt=paths=source_relative proto/**/*.proto
+  --go-grpc_opt=module=github.com/shibafu528/dtvault/dtvault-types-golang \
+  proto/**/*.proto
 ```
 
 #### Generate GraphQL codes
