@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/base64"
 	"fmt"
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
 )
@@ -13,6 +14,12 @@ func NewProgramFromPb(p *types.Program) *Program {
 			Key:   ext.Key,
 			Value: ext.Value,
 		})
+	}
+
+	var thumb *string
+	if len(p.Thumbnail) != 0 && len(p.ThumbnailMimeType) != 0 {
+		t := fmt.Sprintf("data:%s;base64,%s", p.ThumbnailMimeType, base64.StdEncoding.EncodeToString(p.Thumbnail))
+		thumb = &t
 	}
 
 	return &Program{
@@ -40,5 +47,6 @@ func NewProgramFromPb(p *types.Program) *Program {
 				Name:        p.Service.Channel.Name,
 			},
 		},
+		Thumbnail: thumb,
 	}
 }

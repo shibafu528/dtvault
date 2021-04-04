@@ -11,6 +11,8 @@ import {
     Flex,
     LinkBox,
     LinkOverlay,
+    Image,
+    Box,
 } from '@chakra-ui/react';
 import { ChevronRightIcon } from '@chakra-ui/icons';
 import { Program, useProgramsQuery } from '../generated/graphql';
@@ -22,18 +24,21 @@ type ItemProps = {
 };
 
 const Item: React.FC<ItemProps> = ({ item }) => (
-    <LinkBox borderWidth="1px" borderRadius="md" px="3" py="2">
-        <LinkOverlay as={Link} to={`/programs/${item.id}`}>
-            {item.name}
-        </LinkOverlay>
-        <Flex justifyContent="space-between" mt="1">
-            <Text color="gray.500" fontSize="sm">
-                {parseAndFormatDate(item.startAt)}
-            </Text>
-            <Text color="gray.500" fontSize="sm">
-                {item.service.name}
-            </Text>
-        </Flex>
+    <LinkBox borderWidth="1px" borderRadius="md" overflow="hidden">
+        {item.thumbnail && <Image src={item.thumbnail} objectFit="contain" />}
+        <Box px="3" py="2">
+            <LinkOverlay as={Link} to={`/programs/${item.id}`}>
+                {item.name}
+            </LinkOverlay>
+            <Flex justifyContent="space-between" mt="1">
+                <Text color="gray.500" fontSize="sm">
+                    {parseAndFormatDate(item.startAt)}
+                </Text>
+                <Text color="gray.500" fontSize="sm">
+                    {item.service.name}
+                </Text>
+            </Flex>
+        </Box>
     </LinkBox>
 );
 

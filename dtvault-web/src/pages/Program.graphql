@@ -19,17 +19,11 @@ query program($programId: ID!) {
             mimeType
             totalLength
         }
+        thumbnail
     }
     presets {
         id
         title
         command
-    }
-}
-
-query programThumbnail($programId: ID!) {
-    program(id: $programId) {
-        id
-        thumbnail
     }
 }

@@ -8,5 +8,6 @@ query programs {
             id
             name
         }
+        thumbnail
     }
 }

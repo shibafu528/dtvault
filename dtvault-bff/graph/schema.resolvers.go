@@ -5,13 +5,6 @@ package graph
 
 import (
 	"context"
-	"encoding/base64"
-	"fmt"
-	"github.com/shibafu528/dtvault/dtvault-types-golang/central"
-	"github.com/shibafu528/dtvault/dtvault-types-golang/encoder"
-	"github.com/shibafu528/dtvault/dtvault-types-golang/storage"
-	"io"
-	"log"
 	"regexp"
 	"strconv"
 	"time"
@@ -19,6 +12,8 @@ import (
 	"github.com/shibafu528/dtvault/dtvault-bff/graph/generated"
 	"github.com/shibafu528/dtvault/dtvault-bff/graph/model"
 	types "github.com/shibafu528/dtvault/dtvault-types-golang"
+	"github.com/shibafu528/dtvault/dtvault-types-golang/central"
+	"github.com/shibafu528/dtvault/dtvault-types-golang/encoder"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -57,147 +52,6 @@ func (r *programResolver) Videos(ctx context.Context, obj *model.Program) ([]*mo
 	}
 
 	return videos, nil
-}
-
-func (r *programResolver) Thumbnail(ctx context.Context, obj *model.Program) (*string, error) {
-	conn, err := r.CentralAddr.Dial()
-	if err != nil {
-		return nil, gqlerror.Errorf("fail to dial: %v", err)
-	}
-	defer conn.Close()
-
-	client := central.NewProgramServiceClient(conn)
-	res, err := client.ListVideosByProgram(ctx, &central.ListVideosByProgramRequest{
-		ProgramId: &types.ProgramIdentity{
-			NetworkId: uint32(obj.NetworkID),
-			ServiceId: uint32(obj.ServiceID),
-			EventId:   uint32(obj.EventID),
-			StartAt:   timestamppb.New(obj.StartAt),
-		},
-	})
-	if err != nil {
-		return nil, gqlerror.Errorf("ListVideosByProgram: %v", err)
-	}
-	if len(res.Videos) == 0 {
-		return nil, nil
-	}
-
-	econn, err := r.EncoderAddr.Dial()
-	if err != nil {
-		return nil, gqlerror.Errorf("fail to dial: %v", err)
-	}
-	defer econn.Close()
-
-	enc := encoder.NewEncoderServiceClient(econn)
-	stream, err := enc.GenerateThumbnail(ctx)
-	if err != nil {
-		return nil, gqlerror.Errorf("GenerateThumbnail: %v", err)
-	}
-
-	term := make(chan struct{})
-	done := make(chan struct{})
-	verr := make(chan error)
-	go func() {
-		defer close(verr)
-		defer close(done)
-
-		vss := storage.NewVideoStorageServiceClient(conn)
-		req := &storage.GetVideoRequest{VideoId: res.Videos[0].VideoId}
-		vstream, err := vss.GetVideo(ctx, req)
-		if err != nil {
-			verr <- err
-			return
-		}
-
-		for {
-			select {
-			case <-term:
-				err := vstream.CloseSend()
-				if err != nil {
-					verr <- err
-				}
-				return
-			default:
-			}
-
-			r, err := vstream.Recv()
-			if err == io.EOF {
-				break
-			}
-
-			switch part := r.Part.(type) {
-			case *storage.GetVideoResponse_Header:
-				req := &encoder.GenerateThumbnailRequest_Header{
-					TotalLength:  part.Header.TotalLength,
-					OutputFormat: encoder.GenerateThumbnailRequest_OUTPUT_FORMAT_JPEG,
-					Width:        1280,
-					Height:       720,
-					Position:     30,
-				}
-				err = stream.Send(&encoder.GenerateThumbnailRequest{Part: &encoder.GenerateThumbnailRequest_Header_{Header: req}})
-				if err != nil {
-					verr <- err
-					return
-				}
-			case *storage.GetVideoResponse_Datagram_:
-				req := &encoder.GenerateThumbnailRequest_Datagram{
-					Offset:  part.Datagram.Offset,
-					Payload: part.Datagram.Payload,
-				}
-				err = stream.Send(&encoder.GenerateThumbnailRequest{Part: &encoder.GenerateThumbnailRequest_Datagram_{Datagram: req}})
-				if err != nil {
-					verr <- err
-					return
-				}
-			default:
-				log.Printf("EncodeVideo: invalid response: %v", req)
-			}
-		}
-	}()
-
-	var blob []byte
-	for {
-		select {
-		case err := <-verr:
-			err2 := stream.CloseSend()
-			if err2 != nil {
-				log.Printf("GenerateThumbnail: %v", err2)
-			}
-			return nil, gqlerror.Errorf("GetVideo: %v", err)
-		default:
-		}
-
-		r, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			close(term)
-			return nil, gqlerror.Errorf("GenerateThumbnail: %v", err)
-		}
-
-		switch part := r.Part.(type) {
-		case *encoder.GenerateThumbnailResponse_Datagram_:
-			blob = append(blob, part.Datagram.Payload...)
-		default:
-			log.Printf("GenerateThumbnail: invalid response: %v", r)
-		}
-	}
-	close(term)
-
-	err = <-verr
-	if err != nil {
-		log.Printf("GetVideo: %v", err)
-	}
-
-	<-done
-
-	if len(blob) == 0 {
-		return nil, nil
-	}
-
-	uri := fmt.Sprintf("data:image/jpeg;base64,%s", base64.StdEncoding.EncodeToString(blob))
-	return &uri, nil
 }
 
 func (r *queryResolver) Programs(ctx context.Context) ([]*model.Program, error) {
