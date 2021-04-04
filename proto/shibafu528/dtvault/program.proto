@@ -18,6 +18,8 @@ message Program {
     string description = 7; // text
     repeated ExtendedEvent extended = 8;
     Service service = 9;
+    bytes thumbnail = 10;
+    string thumbnail_mime_type = 11;
 }
 
 message ExtendedEvent {

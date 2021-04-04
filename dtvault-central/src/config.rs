@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
+use tonic::transport::Uri;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -7,6 +8,8 @@ pub struct Config {
     pub database: Database,
     #[serde(default)]
     pub storages: Vec<Storage>,
+    #[serde(default)]
+    pub outlet: Outlet,
 }
 
 impl Config {
@@ -19,6 +22,7 @@ impl Config {
         for storage in &self.storages {
             storage.validate()?;
         }
+        self.outlet.validate()?;
         Ok(())
     }
 }
@@ -90,5 +94,30 @@ impl FileSystem {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct Outlet {
+    pub encoder_url: String,
+}
+
+impl Outlet {
+    pub fn validate(&self) -> Result<(), String> {
+        if !self.encoder_url.is_empty() {
+            if let Err(e) = self.encoder_url.parse::<Uri>() {
+                return Err(format!("outlet.encoder_url is invalid: {}", e));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn encoder_url(&self) -> Option<Uri> {
+        if self.encoder_url.is_empty() {
+            None
+        } else {
+            Some(self.encoder_url.parse().unwrap())
+        }
     }
 }

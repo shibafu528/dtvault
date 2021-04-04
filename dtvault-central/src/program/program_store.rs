@@ -5,6 +5,7 @@ use dtvault_types::shibafu528::dtvault::central::create_program_response::Status
 use dtvault_types::shibafu528::dtvault::central::PersistStore;
 use dtvault_types::shibafu528::dtvault::Program;
 use fs2::FileExt;
+use mime::Mime;
 use prost::Message;
 use std::collections::BTreeMap;
 use std::io::Write;
@@ -32,6 +33,14 @@ pub enum VideoWriteError<'a> {
     ProgramNotFound(&'a ProgramKey),
     #[error("Provider ID `{0}` already exists")]
     AlreadyExists(String),
+    #[error(transparent)]
+    Poisoned(#[from] MutexPoisonError),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum VideoThumbnailUpdateError {
+    #[error("Video not found (id = {0})")]
+    VideoNotFound(Uuid),
     #[error(transparent)]
     Poisoned(#[from] MutexPoisonError),
 }
@@ -203,6 +212,27 @@ impl ProgramStore {
                     Ok(())
                 }
                 None => Err(MetadataWriteError::ProgramNotFound(key)),
+            }
+        })
+    }
+
+    pub fn update_video_thumbnail(
+        &self,
+        id: &Uuid,
+        bin: Vec<u8>,
+        mime_type: Mime,
+    ) -> Result<(), VideoThumbnailUpdateError> {
+        self.mutation(|_| {
+            let mut store = self.videos.write().map_err(|_| MutexPoisonError)?;
+            match store.get(id) {
+                Some(video) => {
+                    let mut video = (**video).clone();
+                    video.thumbnail = bin;
+                    video.thumbnail_mime_type = Some(mime_type);
+                    store.insert(id.clone(), Arc::new(video));
+                    Ok(())
+                }
+                None => Err(VideoThumbnailUpdateError::VideoNotFound(id.clone())),
             }
         })
     }

@@ -212,6 +212,8 @@ impl Program {
                 Some(service) => Some(service.exchangeable()),
                 None => None,
             },
+            thumbnail: Vec::new(),
+            thumbnail_mime_type: String::new(),
         }
     }
 
@@ -341,7 +343,7 @@ pub struct Video {
     pub id: Uuid,
     pub provider_id: String,
     program_id: ProgramKey,
-    total_length: u64,
+    pub total_length: u64,
     pub file_name: String,
     original_file_name: String,
     #[serde(with = "crate::serde::mime")]
@@ -349,6 +351,10 @@ pub struct Video {
     #[serde(with = "crate::serde::uuid")]
     pub storage_id: Uuid,
     pub storage_prefix: String,
+    #[serde(skip)]
+    pub thumbnail: Vec<u8>,
+    #[serde(skip)]
+    pub thumbnail_mime_type: Option<Mime>,
 }
 
 impl Video {
@@ -363,6 +369,8 @@ impl Video {
             mime_type: video_header.mime_type.parse().unwrap(),
             storage_id: Uuid::nil(),
             storage_prefix: "".to_string(),
+            thumbnail: Vec::new(),
+            thumbnail_mime_type: None,
         }
     }
 
@@ -410,6 +418,8 @@ impl Persistence<PersistVideo> for Video {
             mime_type: persisted.mime_type.parse()?,
             storage_id: Uuid::parse_str(&persisted.storage_id)?,
             storage_prefix: persisted.storage_prefix,
+            thumbnail: persisted.thumbnail,
+            thumbnail_mime_type: persisted.thumbnail_mime_type.parse().ok(),
         })
     }
 
@@ -432,6 +442,12 @@ impl Persistence<PersistVideo> for Video {
                 .encode_lower(&mut Uuid::encode_buffer())
                 .to_string(),
             storage_prefix: self.storage_prefix.clone(),
+            thumbnail: self.thumbnail.clone(),
+            thumbnail_mime_type: self
+                .thumbnail_mime_type
+                .as_ref()
+                .map_or_else(|| "", |v| v.essence_str())
+                .to_string(),
         }
     }
 }

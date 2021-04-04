@@ -6,6 +6,7 @@ mod validator;
 pub use self::filesystem::*;
 pub use self::storage::*;
 pub use self::tempfile::*;
+use crate::event::{Event, EventEmitter, VideoCreated};
 use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
 use crate::video_storage::validator::validate_file_name;
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
@@ -29,11 +30,16 @@ fn map_io_error(e: tokio::io::Error) -> Status {
 pub struct VideoStorageService {
     store: Arc<ProgramStore>,
     storages: Vec<Arc<IStorage>>,
+    event_emitter: EventEmitter,
 }
 
 impl VideoStorageService {
-    pub fn new(store: Arc<ProgramStore>, storages: Vec<Arc<IStorage>>) -> Self {
-        VideoStorageService { store, storages }
+    pub fn new(store: Arc<ProgramStore>, storages: Vec<Arc<IStorage>>, event_emitter: EventEmitter) -> Self {
+        VideoStorageService {
+            store,
+            storages,
+            event_emitter,
+        }
     }
 
     fn primary_storage(&self) -> Arc<IStorage> {
@@ -58,6 +64,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
         &self,
         request: Request<tonic::Streaming<CreateVideoRequest>>,
     ) -> Result<Response<CreateVideoResponse>, Status> {
+        let mut event_emitter = self.event_emitter.clone();
         let mut stream = request.into_inner();
 
         let (program, header) = match stream.next().await {
@@ -162,6 +169,16 @@ impl VideoStorageServiceTrait for VideoStorageService {
             eprintln!("Error in StorageWriter.finish: {}", e);
         }
         println!("CreateVideo finish");
+
+        if let Err(e) = event_emitter
+            .send(Event::VideoCreated(VideoCreated {
+                program_key,
+                video_id: video.id.clone(),
+            }))
+            .await
+        {
+            eprintln!("Error in send event: {}", e);
+        }
 
         Ok(Response::new(CreateVideoResponse {
             video: Some(video.exchangeable()),

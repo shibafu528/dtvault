@@ -21,6 +21,28 @@ impl ProgramService {
     pub fn new(store: Arc<ProgramStore>) -> Self {
         ProgramService { store }
     }
+
+    fn assign_thumbnail(&self, sp: Arc<Program>, xp: &mut dtvault_types::shibafu528::dtvault::Program) {
+        let videos = match self.store.find_videos(sp.video_ids()) {
+            Ok(v) => v,
+            _ => return,
+        };
+
+        for video in videos {
+            let video = match video {
+                Some(video) if !video.thumbnail.is_empty() => video,
+                _ => continue,
+            };
+
+            xp.thumbnail = video.thumbnail.clone();
+            xp.thumbnail_mime_type = video
+                .thumbnail_mime_type
+                .as_ref()
+                .map_or_else(|| "", |v| v.essence_str())
+                .to_string();
+            break;
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -39,9 +61,11 @@ impl ProgramServiceTrait for ProgramService {
         let program_key = ProgramKey::from_program_id(&program_id);
         match self.store.find(&program_key) {
             Ok(result) => match result {
-                Some(sp) => Ok(Response::new(GetProgramResponse {
-                    program: Some(sp.exchangeable()),
-                })),
+                Some(sp) => {
+                    let mut xp = sp.exchangeable();
+                    self.assign_thumbnail(sp.clone(), &mut xp);
+                    Ok(Response::new(GetProgramResponse { program: Some(xp) }))
+                }
                 None => Err(Status::not_found(format!("Program not found (id = {})", program_key))),
             },
             Err(e) => Err(Status::aborted(format!("{}", e))),
@@ -54,7 +78,14 @@ impl ProgramServiceTrait for ProgramService {
     ) -> Result<Response<ListProgramsResponse>, Status> {
         let programs = self.store.all().map_err(|e| Status::aborted(format!("{}", e)))?;
         let res = ListProgramsResponse {
-            programs: programs.iter().map(|sp| sp.exchangeable()).collect(),
+            programs: programs
+                .iter()
+                .map(|sp| {
+                    let mut xp = sp.exchangeable();
+                    self.assign_thumbnail(sp.clone(), &mut xp);
+                    xp
+                })
+                .collect(),
         };
         Ok(Response::new(res))
     }

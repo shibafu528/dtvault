@@ -72,4 +72,6 @@ message PersistVideo {
     string mime_type = 7;
     string storage_id = 8;
     string storage_prefix = 9;
+    bytes thumbnail = 10;
+    string thumbnail_mime_type = 11;
 }

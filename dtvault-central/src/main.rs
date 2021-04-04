@@ -1,9 +1,11 @@
 mod config;
+mod event;
 mod program;
 mod serde;
 mod video_storage;
 
 use crate::config::Config;
+use crate::event::EventContext;
 use crate::program::{ProgramService, ProgramStore};
 use crate::video_storage::{FileSystem, IStorage, VideoStorageService};
 use ::serde::Deserialize;
@@ -41,6 +43,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let config = Arc::new(config);
 
+    let (event_emitter, event_receiver) = event::make_event_channel();
+
     let program_store = Arc::new(ProgramStore::new(config.clone())?);
     let program_service = ProgramService::new(program_store.clone());
 
@@ -51,7 +55,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             config::Storage::Tempfile => storages.push(Arc::new(video_storage::Tempfile::new())),
         }
     }
-    let video_storage_service = VideoStorageService::new(program_store.clone(), storages);
+    let video_storage_service =
+        VideoStorageService::new(program_store.clone(), storages.clone(), event_emitter.clone());
+
+    let _event_join_handle = event::spawn_event_consumer(
+        EventContext {
+            config: config.clone(),
+            program_store: program_store.clone(),
+            storages,
+        },
+        event_receiver,
+    );
 
     let addr = config.server.listen.parse().unwrap();
     println!("Server listening on {}", addr);
