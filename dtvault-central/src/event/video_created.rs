@@ -94,7 +94,7 @@ fn make_request_stream(
             output_format: OutputFormat::Jpeg as i32,
             width: 854,
             height: 480,
-            position: 15,
+            position: 30,
         };
         let header_req = GenerateThumbnailRequest {
             part: Some(RequestPart::Header(header)),
