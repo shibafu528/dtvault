@@ -50,6 +50,8 @@ impl RecordedProgram {
             description: self.short_description().clone(),
             extended: self.extra_to_extented_event()?,
             service: Some(self.channel.to_message()?),
+            thumbnail: Vec::new(),
+            thumbnail_mime_type: String::new(),
         })
     }
 
