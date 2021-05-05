@@ -16,10 +16,10 @@ use dtvault_types::shibafu528::dtvault::storage::video_storage_service_server::V
 use dtvault_types::shibafu528::dtvault::storage::{
     CreateVideoRequest, CreateVideoResponse, GetVideoRequest, GetVideoResponse,
 };
-use std::pin::Pin;
 use std::sync::Arc;
-use tokio::prelude::*;
-use tokio::stream::{Stream, StreamExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 use uuid::Uuid;
 
@@ -64,7 +64,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
         &self,
         request: Request<tonic::Streaming<CreateVideoRequest>>,
     ) -> Result<Response<CreateVideoResponse>, Status> {
-        let mut event_emitter = self.event_emitter.clone();
+        let event_emitter = self.event_emitter.clone();
         let mut stream = request.into_inner();
 
         let (program, header) = match stream.next().await {
@@ -185,7 +185,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
         }))
     }
 
-    type GetVideoStream = Pin<Box<dyn Stream<Item = Result<GetVideoResponse, Status>> + Send + Sync + 'static>>;
+    type GetVideoStream = ReceiverStream<Result<GetVideoResponse, Status>>;
 
     async fn get_video(&self, request: Request<GetVideoRequest>) -> Result<Response<Self::GetVideoStream>, Status> {
         let msg = request.into_inner();
@@ -221,7 +221,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
             Err(e) => return handle_find_status_error(e),
         };
 
-        let (mut tx, rx) = tokio::sync::mpsc::channel(1);
+        let (tx, rx) = tokio::sync::mpsc::channel(1);
         tokio::spawn(async move {
             let header_res = GetVideoResponse {
                 part: Some(GetVideoResponsePart::Header(video.exchangeable())),
@@ -268,6 +268,6 @@ impl VideoStorageServiceTrait for VideoStorageService {
             }
         });
 
-        Ok(Response::new(Box::pin(rx)))
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
