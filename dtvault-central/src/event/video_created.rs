@@ -10,8 +10,9 @@ use dtvault_types::shibafu528::dtvault::encoder::GenerateThumbnailRequest;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::io::AsyncReadExt;
-use tokio::stream::StreamExt;
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -52,7 +53,9 @@ async fn create_video_thumbnail(ec: &EventContext, params: &VideoCreated) -> Res
 
     let mut encoder_service_client = EncoderServiceClient::connect(encoder_url).await?;
     let stream = make_request_stream(video.clone(), video_stream);
-    let res = encoder_service_client.generate_thumbnail(stream).await?;
+    let res = encoder_service_client
+        .generate_thumbnail(ReceiverStream::new(stream))
+        .await?;
     let mut res_stream = res.into_inner();
 
     let mut buffer = vec![];
@@ -87,7 +90,7 @@ fn make_request_stream(
     video: Arc<Video>,
     mut video_stream: Pin<Box<dyn StorageReader + Send>>,
 ) -> mpsc::Receiver<GenerateThumbnailRequest> {
-    let (mut tx, rx) = mpsc::channel(1);
+    let (tx, rx) = mpsc::channel(1);
     tokio::spawn(async move {
         let header = RequestHeader {
             total_length: video.total_length,

@@ -6,9 +6,10 @@ pub use crate::event::video_created::VideoCreated;
 use crate::program::ProgramStore;
 use crate::video_storage::IStorage;
 use std::sync::Arc;
-use tokio::stream::StreamExt;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::StreamExt;
 
 pub type EventEmitter = mpsc::Sender<Event>;
 pub type EventReceiver = mpsc::Receiver<Event>;
@@ -28,9 +29,10 @@ pub fn make_event_channel() -> (EventEmitter, EventReceiver) {
     mpsc::channel(16)
 }
 
-pub fn spawn_event_consumer(ec: EventContext, mut rx: EventReceiver) -> JoinHandle<()> {
+pub fn spawn_event_consumer(ec: EventContext, rx: EventReceiver) -> JoinHandle<()> {
     tokio::spawn(async move {
-        while let Some(event) = rx.next().await {
+        let mut stream = ReceiverStream::new(rx);
+        while let Some(event) = stream.next().await {
             println!("[EV] {:?}", event);
             let r = match event {
                 Event::VideoCreated(params) => handle_video_created(&ec, params).await,

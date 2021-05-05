@@ -7,21 +7,22 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic = "0.3"
-prost = "0.6"
-prost-types = "0.6"
+tonic = "0.4"
+prost = "0.7"
+prost-types = "0.7"
 envy = "0.4"
 toml = "0.5"
 shell-words = "1.0"
 thiserror = "1.0"
+tokio-stream = "0.1"
 
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
 
 [dependencies.tokio]
-version = "0.2"
-features = ["rt-threaded", "time", "stream", "fs", "macros", "process"]
+version = "1"
+features = ["full"]
 
 [dependencies.dtvault-types]
 path = "../dtvault-types"

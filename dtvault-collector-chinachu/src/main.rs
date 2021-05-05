@@ -10,6 +10,7 @@ use envy::Error;
 use serde::Deserialize;
 use serde_json::value::RawValue;
 use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::transport::Uri;
 
 use dtvault_types::shibafu528::dtvault::central::create_program_response::Status as CreateProgramStatus;
@@ -92,7 +93,7 @@ async fn send_to_central(
     let stream = {
         let mut reader = BufReader::new(File::open(record.record.recorded.to_string())?);
         let header = record.video_header()?;
-        let (mut tx, rx) = mpsc::channel(1);
+        let (tx, rx) = mpsc::channel(1);
         tokio::spawn(async move {
             let header_req = CreateVideoRequest {
                 part: Some(VideoPart::Header(header)),
@@ -132,7 +133,7 @@ async fn send_to_central(
                 };
             }
         });
-        rx
+        ReceiverStream::new(rx)
     };
     let _video_res = connection.video_storage_client.create_video(stream).await?;
     println!("    Done. ({} secs)", stream_begin.elapsed().as_secs_f32());

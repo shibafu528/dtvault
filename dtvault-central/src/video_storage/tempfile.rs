@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::fs::File;
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter, SeekFrom};
+use tokio::io::{AsyncRead, AsyncSeekExt, AsyncWrite, AsyncWriteExt, BufReader, BufWriter, ReadBuf, SeekFrom};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -73,7 +73,7 @@ pub struct Reader {
 }
 
 impl AsyncRead for Reader {
-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<Result<usize, std::io::Error>> {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
         AsyncRead::poll_read(self.project().reader, cx, buf)
     }
 }

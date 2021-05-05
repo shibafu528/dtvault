@@ -14,13 +14,12 @@ use dtvault_types::shibafu528::dtvault::encoder::{
     EncodeVideoRequest, EncodeVideoResponse, GenerateThumbnailRequest, GenerateThumbnailResponse, ListPresetsRequest,
     ListPresetsResponse,
 };
-use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::Arc;
-use tokio::io::{BufReader, BufWriter};
-use tokio::prelude::*;
+use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::process::Command;
-use tokio::stream::{Stream, StreamExt};
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::StreamExt;
 use tonic::{Request, Response, Status};
 
 pub struct EncoderService {
@@ -35,7 +34,7 @@ impl EncoderService {
 
 #[tonic::async_trait]
 impl EncoderServiceTrait for EncoderService {
-    type EncodeVideoStream = Pin<Box<dyn Stream<Item = Result<EncodeVideoResponse, Status>> + Send + Sync + 'static>>;
+    type EncodeVideoStream = ReceiverStream<Result<EncodeVideoResponse, Status>>;
 
     async fn encode_video(
         &self,
@@ -93,7 +92,7 @@ impl EncoderServiceTrait for EncoderService {
 
         // TODO: エラー時に両方のタスクを止めないとダメ エラーは1つしか送れない点も考慮が必要?
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        let mut receiver_tx = tx.clone();
+        let receiver_tx = tx.clone();
         tokio::spawn(async move {
             while let Some(msg) = stream.next().await {
                 let msg = match msg {
@@ -130,7 +129,7 @@ impl EncoderServiceTrait for EncoderService {
             }
             eprintln!("[[Finish receiver]]");
         });
-        let mut sender_tx = tx.clone();
+        let sender_tx = tx.clone();
         tokio::spawn(async move {
             let mut sent: usize = 0;
             loop {
@@ -169,7 +168,7 @@ impl EncoderServiceTrait for EncoderService {
             }
             eprintln!("ffmpeg stdout reach eof");
 
-            match child.await {
+            match child.wait().await {
                 Ok(exit_status) => {
                     eprintln!("[[Exit status]] {}", exit_status);
                 }
@@ -179,7 +178,7 @@ impl EncoderServiceTrait for EncoderService {
             }
         });
 
-        Ok(Response::new(Box::pin(rx)))
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 
     async fn list_presets(
@@ -192,8 +191,7 @@ impl EncoderServiceTrait for EncoderService {
         Ok(Response::new(res))
     }
 
-    type GenerateThumbnailStream =
-        Pin<Box<dyn Stream<Item = Result<GenerateThumbnailResponse, Status>> + Send + Sync + 'static>>;
+    type GenerateThumbnailStream = ReceiverStream<Result<GenerateThumbnailResponse, Status>>;
 
     async fn generate_thumbnail(
         &self,
@@ -270,7 +268,7 @@ impl EncoderServiceTrait for EncoderService {
         let mut stdout_reader = BufReader::new(stdout);
 
         let (tx, rx) = tokio::sync::mpsc::channel(1);
-        let mut receiver_tx = tx.clone();
+        let receiver_tx = tx.clone();
         tokio::spawn(async move {
             while let Some(msg) = stream.next().await {
                 let msg = match msg {
@@ -312,7 +310,7 @@ impl EncoderServiceTrait for EncoderService {
             }
             eprintln!("[[Finish receiver]]");
         });
-        let mut sender_tx = tx.clone();
+        let sender_tx = tx.clone();
         tokio::spawn(async move {
             let mut sent: usize = 0;
             loop {
@@ -351,7 +349,7 @@ impl EncoderServiceTrait for EncoderService {
             }
             eprintln!("ffmpeg stdout reach eof");
 
-            match child.await {
+            match child.wait().await {
                 Ok(exit_status) => {
                     eprintln!("[[Exit status]] {}", exit_status);
                 }
@@ -363,6 +361,6 @@ impl EncoderServiceTrait for EncoderService {
             eprintln!("[[Finish sender]]");
         });
 
-        Ok(Response::new(Box::pin(rx)))
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 }
