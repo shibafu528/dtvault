@@ -1,6 +1,11 @@
+mod condition;
+
+use self::condition::Condition;
+use crate::program::{Program, Video};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 use tonic::transport::Uri;
+use uuid::Uuid;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -10,6 +15,10 @@ pub struct Config {
     pub storages: Vec<Storage>,
     #[serde(default)]
     pub outlet: Outlet,
+    #[serde(default)]
+    pub storage_rules: Vec<StorageRule>,
+    #[serde(default)]
+    pub prefix_rules: Vec<PrefixRule>,
 }
 
 impl Config {
@@ -119,5 +128,49 @@ impl Outlet {
         } else {
             Some(self.encoder_url.parse().unwrap())
         }
+    }
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct StorageRule {
+    condition: Condition,
+    pub storage_path: String,
+    #[serde(with = "crate::serde::uuid")]
+    pub storage_id: Uuid,
+}
+
+impl StorageRule {
+    pub fn validate(&self) -> Result<(), String> {
+        self.condition.validate()?;
+        if !self.storage_path.is_empty() && !self.storage_id.is_nil() {
+            return Err("you may only specify one of these properties: storage_path, storage_id".to_string());
+        }
+
+        Ok(())
+    }
+
+    pub fn matches(&self, program: &Program, video: &Video) -> bool {
+        self.condition.matches(program, video)
+    }
+}
+
+#[derive(Deserialize, Debug, Default)]
+pub struct PrefixRule {
+    condition: Condition,
+    pub prefix: String,
+}
+
+impl PrefixRule {
+    pub fn validate(&self) -> Result<(), String> {
+        self.condition.validate()?;
+        if self.prefix.is_empty() {
+            return Err("prefix is empty".to_string());
+        }
+
+        Ok(())
+    }
+
+    pub fn matches(&self, program: &Program, video: &Video) -> bool {
+        self.condition.matches(program, video)
     }
 }
