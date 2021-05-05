@@ -220,14 +220,15 @@ dependencies = [
  "indexmap",
  "mime_guess",
  "once_cell",
- "prost 0.6.1",
- "prost-types 0.6.1",
+ "prost 0.7.0",
+ "prost-types 0.7.0",
  "regex",
  "serde",
  "serde_json",
  "thiserror",
- "tokio 0.2.25",
- "tonic 0.3.1",
+ "tokio 1.5.0",
+ "tokio-stream",
+ "tonic 0.4.3",
 ]
 
 [[package]]
@@ -1279,6 +1280,7 @@ dependencies = [
  "libc",
  "memchr",
  "mio 0.7.11",
+ "num_cpus",
  "pin-project-lite 0.2.6",
  "tokio-macros 1.1.0",
 ]
