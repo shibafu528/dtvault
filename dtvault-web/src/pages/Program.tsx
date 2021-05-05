@@ -110,7 +110,7 @@ const Program = () => {
                                 <Link href={`/stream?id=${video.id}`} target="_blank" _hover={undefined} ml="2">
                                     <Button leftIcon={<DownloadIcon />}>
                                         ダウンロード
-                                        <Text color="gray.600" fontSize="xs" ml="0.5">
+                                        <Text color="gray.500" fontSize="xs" ml="0.5">
                                             ({(parseInt(video.totalLength, 10) / 1024 / 1024).toFixed(1)} MB)
                                         </Text>
                                     </Button>
