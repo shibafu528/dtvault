@@ -6,8 +6,9 @@ mod validator;
 pub use self::filesystem::*;
 pub use self::storage::*;
 pub use self::tempfile::*;
+use crate::config::Config;
 use crate::event::{Event, EventEmitter, VideoCreated};
-use crate::program::{validate_program_id, ProgramKey, ProgramStore, Video, VideoWriteError};
+use crate::program::{validate_program_id, Program, ProgramKey, ProgramStore, Video, VideoWriteError};
 use crate::video_storage::validator::validate_file_name;
 use dtvault_types::shibafu528::dtvault::storage::create_video_request::Part as VideoPart;
 use dtvault_types::shibafu528::dtvault::storage::get_video_response::Datagram as GetVideoResponseDatagram;
@@ -28,14 +29,21 @@ fn map_io_error(e: tokio::io::Error) -> Status {
 }
 
 pub struct VideoStorageService {
+    config: Arc<Config>,
     store: Arc<ProgramStore>,
     storages: Vec<Arc<IStorage>>,
     event_emitter: EventEmitter,
 }
 
 impl VideoStorageService {
-    pub fn new(store: Arc<ProgramStore>, storages: Vec<Arc<IStorage>>, event_emitter: EventEmitter) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        store: Arc<ProgramStore>,
+        storages: Vec<Arc<IStorage>>,
+        event_emitter: EventEmitter,
+    ) -> Self {
         VideoStorageService {
+            config,
             store,
             storages,
             event_emitter,
@@ -44,6 +52,33 @@ impl VideoStorageService {
 
     fn primary_storage(&self) -> Arc<IStorage> {
         self.storages.first().unwrap().clone()
+    }
+
+    async fn find_storage_by_rule(&self, program: &Program, video: &Video) -> Arc<IStorage> {
+        for rule in &self.config.storage_rules {
+            if !rule.matches(program, video) {
+                continue;
+            }
+
+            if !rule.storage_label.is_empty() {
+                // find by label
+                for storage in &self.storages {
+                    if storage.label() == rule.storage_label {
+                        return storage.clone();
+                    }
+                }
+            } else {
+                // find by uuid
+                for storage in &self.storages {
+                    if storage.storage_id().await.map_or(false, |id| id == rule.storage_id) {
+                        return storage.clone();
+                    }
+                }
+            }
+        }
+
+        // fallback
+        self.primary_storage()
     }
 
     async fn find_storage_by_id(&self, storage_id: &Uuid) -> Option<Arc<IStorage>> {
@@ -121,7 +156,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
             }
         }
         let mut video = Video::from_exchanged(&program, header);
-        let storage = self.primary_storage();
+        let storage = self.find_storage_by_rule(&program, &video).await;
         match storage.storage_id().await {
             Ok(id) => video.storage_id = id,
             Err(e) => return Err(Status::aborted(format!("{}", e))),

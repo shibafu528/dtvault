@@ -32,6 +32,12 @@ impl Config {
             storage.validate()?;
         }
         self.outlet.validate()?;
+        for rule in &self.storage_rules {
+            rule.validate()?;
+        }
+        for rule in &self.prefix_rules {
+            rule.validate()?;
+        }
         Ok(())
     }
 }
@@ -72,25 +78,30 @@ impl Database {
 #[serde(tag = "driver")]
 pub enum Storage {
     FileSystem(FileSystem),
-    Tempfile,
+    Tempfile(Tempfile),
 }
 
 impl Storage {
     pub fn validate(&self) -> Result<(), String> {
         match self {
             Storage::FileSystem(fs) => fs.validate(),
-            Storage::Tempfile => Ok(()),
+            Storage::Tempfile(tf) => tf.validate(),
         }
     }
 }
 
 #[derive(Deserialize, Debug)]
 pub struct FileSystem {
+    pub label: String,
     pub root_dir: String,
 }
 
 impl FileSystem {
     pub fn validate(&self) -> Result<(), String> {
+        if self.label.is_empty() {
+            return Err("label is empty".to_string());
+        }
+
         if self.root_dir.is_empty() {
             return Err("no storage_dir found".to_string());
         }
@@ -100,6 +111,21 @@ impl FileSystem {
             if let Err(e) = std::fs::create_dir_all(root_dir) {
                 return Err(e.to_string());
             }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Tempfile {
+    pub label: String,
+}
+
+impl Tempfile {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.label.is_empty() {
+            return Err("label is empty".to_string());
         }
 
         Ok(())
@@ -134,7 +160,7 @@ impl Outlet {
 #[derive(Deserialize, Debug, Default)]
 pub struct StorageRule {
     condition: Condition,
-    pub storage_path: String,
+    pub storage_label: String,
     #[serde(with = "crate::serde::uuid")]
     pub storage_id: Uuid,
 }
@@ -142,8 +168,8 @@ pub struct StorageRule {
 impl StorageRule {
     pub fn validate(&self) -> Result<(), String> {
         self.condition.validate()?;
-        if !self.storage_path.is_empty() && !self.storage_id.is_nil() {
-            return Err("you may only specify one of these properties: storage_path, storage_id".to_string());
+        if !self.storage_label.is_empty() && !self.storage_id.is_nil() {
+            return Err("you may only specify one of these properties: storage_label, storage_id".to_string());
         }
 
         Ok(())

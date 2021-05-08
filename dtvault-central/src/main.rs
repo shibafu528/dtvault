@@ -51,12 +51,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut storages = Vec::<Arc<IStorage>>::new();
     for conf in &config.storages {
         match conf {
-            config::Storage::FileSystem(fs) => storages.push(Arc::new(FileSystem::new(fs.root_dir.to_string()))),
-            config::Storage::Tempfile => storages.push(Arc::new(video_storage::Tempfile::new())),
+            config::Storage::FileSystem(fs) => {
+                storages.push(Arc::new(FileSystem::new(fs.label.to_string(), fs.root_dir.to_string())))
+            }
+            config::Storage::Tempfile(tf) => {
+                storages.push(Arc::new(video_storage::Tempfile::new(tf.label.to_string())))
+            }
         }
     }
-    let video_storage_service =
-        VideoStorageService::new(program_store.clone(), storages.clone(), event_emitter.clone());
+    let video_storage_service = VideoStorageService::new(
+        config.clone(),
+        program_store.clone(),
+        storages.clone(),
+        event_emitter.clone(),
+    );
 
     let _event_join_handle = event::spawn_event_consumer(
         EventContext {

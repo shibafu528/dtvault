@@ -11,14 +11,15 @@ use tokio::sync::RwLock;
 use uuid::Uuid;
 
 pub struct Tempfile {
+    label: String,
     storage_id: Uuid,
     files: Arc<RwLock<BTreeMap<Uuid, File>>>,
 }
 
 impl Tempfile {
-    #[allow(dead_code)]
-    pub fn new() -> Self {
+    pub fn new(label: String) -> Self {
         Tempfile {
+            label,
             storage_id: Uuid::new_v4(),
             files: Arc::new(RwLock::new(BTreeMap::new())),
         }
@@ -29,6 +30,10 @@ impl Tempfile {
 impl Storage for Tempfile {
     fn is_available(&self) -> bool {
         true
+    }
+
+    fn label(&self) -> &str {
+        &self.label
     }
 
     async fn storage_id(&self) -> Result<Uuid, UnavailableError> {
