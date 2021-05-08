@@ -143,6 +143,7 @@ impl VideoStorageServiceTrait for VideoStorageService {
             return Err(Status::invalid_argument(e));
         }
 
+        // Check video existence
         let videos = match self.store.find_videos(program.video_ids()) {
             Ok(v) => Ok(v),
             Err(e) => Err(Status::aborted(format!("{}", e))),
@@ -156,11 +157,24 @@ impl VideoStorageServiceTrait for VideoStorageService {
             }
         }
         let mut video = Video::from_exchanged(&program, header);
+
+        // Find storage
         let storage = self.find_storage_by_rule(&program, &video).await;
         match storage.storage_id().await {
             Ok(id) => video.storage_id = id,
             Err(e) => return Err(Status::aborted(format!("{}", e))),
         }
+
+        // Set prefix
+        for rule in &self.config.prefix_rules {
+            if !rule.matches(&program, &video) {
+                continue;
+            }
+
+            video.storage_prefix = rule.prefix.clone();
+            break;
+        }
+
         let mut writer = match storage.create(&program, &video).await {
             Ok(w) => Ok(w),
             Err(e) => Err(Status::aborted(format!("{}", e))),
