@@ -6,7 +6,7 @@ mod literal_or_regex;
 use self::channel_type::ChannelType;
 use self::datetime_range::DateTimeRange;
 use self::int64_range::Int64Range;
-use self::literal_or_regex::{Int32OrRegex, LiteralOrRegex, StringOrRegex};
+use self::literal_or_regex::{Int32OrRegex, StringOrRegex};
 use crate::program::{Program, Video};
 use num_traits::ToPrimitive;
 use serde::de::{MapAccess, Visitor};
