@@ -163,6 +163,7 @@ name = "dtvault-central"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "const_format",
  "dtvault-types",
  "envy",
  "fs2",
@@ -173,6 +174,7 @@ dependencies = [
  "pin-project 1.0.1",
  "prost",
  "prost-types",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

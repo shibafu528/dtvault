@@ -16,15 +16,17 @@ const FILE_PROGRAM_METADATA: &str = "metadata.json";
 const FILE_VIDEO: &str = "video.json";
 
 pub struct FileSystem {
+    label: String,
     root_dir: String,
     lock_file_path: PathBuf,
 }
 
 // TODO: 全体的に、一時ファイルを用いた安全なファイル更新を行いたい (QtのQSaveFileのような)
 impl FileSystem {
-    pub fn new(root_dir: String) -> Self {
+    pub fn new(label: String, root_dir: String) -> Self {
         let lock_file_path = PathBuf::from(&root_dir).join(".dtvault_storage");
         FileSystem {
+            label,
             root_dir,
             lock_file_path,
         }
@@ -110,7 +112,7 @@ impl FileSystem {
             return Err(CreateError::CantCreateDirectory);
         }
         if !video_dir.exists() {
-            if let Err(_) = tokio::fs::create_dir(&video_dir).await {
+            if let Err(_) = tokio::fs::create_dir_all(&video_dir).await {
                 return Err(CreateError::CantCreateDirectory);
             }
         }
@@ -159,6 +161,10 @@ impl Storage for FileSystem {
         } else {
             false
         }
+    }
+
+    fn label(&self) -> &str {
+        &self.label
     }
 
     async fn storage_id(&self) -> Result<Uuid, UnavailableError> {

@@ -8,6 +8,7 @@ pub type IStorage = dyn Storage + Send + Sync;
 #[tonic::async_trait]
 pub trait Storage {
     fn is_available(&self) -> bool;
+    fn label(&self) -> &str;
     async fn storage_id(&self) -> Result<Uuid, UnavailableError>;
     async fn find_bin(&self, video: &Video) -> Result<Pin<Box<dyn StorageReader + Send>>, FindStatusError>;
     async fn create(&self, program: &Program, video: &Video)

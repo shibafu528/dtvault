@@ -30,7 +30,7 @@ pub trait Persistence<T> {
     fn persist(&self) -> T;
 }
 
-#[derive(FromPrimitive, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Serialize)]
+#[derive(FromPrimitive, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Serialize, Debug)]
 pub enum ChannelType {
     GR = 1,
     BS = 2,
@@ -38,11 +38,22 @@ pub enum ChannelType {
     Sky = 4,
 }
 
+impl std::fmt::Display for ChannelType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ChannelType::GR => f.write_str("GR"),
+            ChannelType::BS => f.write_str("BS"),
+            ChannelType::CS => f.write_str("CS"),
+            ChannelType::Sky => f.write_str("Sky"),
+        }
+    }
+}
+
 #[derive(Clone, Serialize)]
 pub struct Channel {
-    channel_type: ChannelType,
+    pub channel_type: ChannelType,
     channel: String,
-    name: String,
+    pub name: String,
 }
 
 impl Channel {
@@ -94,8 +105,8 @@ impl Persistence<PersistChannel> for Channel {
 pub struct Service {
     network_id: u16,
     service_id: u16,
-    name: String,
-    channel: Option<Channel>,
+    pub name: String,
+    pub channel: Option<Channel>,
 }
 
 impl Service {
@@ -152,11 +163,11 @@ pub struct Program {
     pub service_id: u16,
     pub event_id: u16,
     pub start_at: DateTime<Utc>,
-    duration: Duration,
-    name: String,
-    description: String,
+    pub duration: Duration,
+    pub name: String,
+    pub description: String,
     extended: Vec<ExtendedEvent>,
-    service: Option<Service>,
+    pub service: Option<Service>,
     #[serde(skip)]
     metadata: HashMap<String, String>,
     #[serde(skip)]
@@ -347,7 +358,7 @@ pub struct Video {
     pub file_name: String,
     original_file_name: String,
     #[serde(with = "crate::serde::mime")]
-    mime_type: Mime,
+    pub mime_type: Mime,
     #[serde(with = "crate::serde::uuid")]
     pub storage_id: Uuid,
     pub storage_prefix: String,
