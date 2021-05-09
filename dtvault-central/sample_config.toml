@@ -10,4 +10,18 @@ data_dir = "/var/lib/dtvault/data"
 
 [[storages]]
 driver = "FileSystem"
+label = "default"
 root_dir = "/var/lib/dtvault/storage"
+
+[outlet]
+# address of dtvault-encoder
+encoder_url = "http://localhost:50052"
+
+# [[storage_rules]]
+# storage_label = "default"
+#
+#   [storage_rules.condition]
+#   channel_type = "GR"
+
+# [[prefix_rules]]
+# prefix = "one/two"
