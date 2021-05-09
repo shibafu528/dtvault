@@ -121,4 +121,20 @@ mod tests {
             _ => assert!(false),
         }
     }
+
+    #[test]
+    fn test_string_literal_match() {
+        let c = StringOrRegex::new("vis".to_string());
+        c.validate().unwrap();
+        assert!(c.matches(&"vis".to_string()));
+        assert!(c.matches(&"television".to_string()));
+    }
+
+    #[test]
+    fn test_int32_literal_match() {
+        let c = Int32OrRegex::new("123".to_string());
+        c.validate().unwrap();
+        assert!(c.matches(&123));
+        assert!(!c.matches(&112345));
+    }
 }
