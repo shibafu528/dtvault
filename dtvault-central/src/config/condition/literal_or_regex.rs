@@ -5,12 +5,6 @@ use std::fmt::{Debug, Display};
 use std::str::FromStr;
 
 #[derive(Debug)]
-pub struct LiteralOrRegex<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> {
-    raw_value: String,
-    value: LiteralOrRegexValue<T, E>,
-}
-
-#[derive(Debug)]
 enum LiteralOrRegexValue<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> {
     Empty,
     Literal(T),
@@ -19,53 +13,92 @@ enum LiteralOrRegexValue<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug +
     InvalidRegex(regex::Error),
 }
 
-impl<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> LiteralOrRegex<T, E> {
-    fn new(value: String) -> Self {
+impl<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> LiteralOrRegexValue<T, E> {
+    fn parse(value: &str) -> Self {
         if value.is_empty() {
-            return LiteralOrRegex {
-                raw_value: value,
-                value: LiteralOrRegexValue::Empty,
-            };
+            return LiteralOrRegexValue::Empty;
         }
 
         if value.starts_with("/") && value.ends_with("/") {
             let pattern = &value[1..value.len() - 1];
             match Regex::new(&pattern) {
-                Ok(re) => LiteralOrRegex {
-                    raw_value: value,
-                    value: LiteralOrRegexValue::Regex(re),
-                },
-                Err(e) => LiteralOrRegex {
-                    raw_value: value,
-                    value: LiteralOrRegexValue::InvalidRegex(e),
-                },
+                Ok(re) => LiteralOrRegexValue::Regex(re),
+                Err(e) => LiteralOrRegexValue::InvalidRegex(e),
             }
         } else {
-            let raw_value = value.clone();
             match value.parse() {
-                Ok(v) => LiteralOrRegex {
-                    raw_value,
-                    value: LiteralOrRegexValue::Literal(v),
-                },
-                Err(e) => LiteralOrRegex {
-                    raw_value,
-                    value: LiteralOrRegexValue::InvalidLiteral(e),
-                },
+                Ok(v) => LiteralOrRegexValue::Literal(v),
+                Err(e) => LiteralOrRegexValue::InvalidLiteral(e),
             }
         }
     }
-}
 
-impl<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> Matcher<T> for LiteralOrRegex<T, E> {
     fn validate(&self) -> Result<(), String> {
-        match &self.value {
+        match self {
             LiteralOrRegexValue::InvalidLiteral(e) => Err(format!("invalid literal: {}", e)),
             LiteralOrRegexValue::InvalidRegex(e) => Err(format!("invalid regular expression: {}", e)),
             _ => Ok(()),
         }
     }
+}
 
-    fn matches(&self, input: &T) -> bool {
+macro_rules! defmatcher {
+    ($id:ident, $t:ty) => {
+        #[derive(Debug)]
+        pub struct $id {
+            raw_value: String,
+            value: LiteralOrRegexValue<$t, <$t as FromStr>::Err>,
+        }
+
+        impl $id {
+            fn new(value: String) -> Self {
+                let parsed_value = LiteralOrRegexValue::parse(&value);
+                $id {
+                    raw_value: value,
+                    value: parsed_value,
+                }
+            }
+        }
+
+        impl Default for $id {
+            fn default() -> Self {
+                Self::new("".to_string())
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $id {
+            fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                Ok(Self::new(String::deserialize(deserializer)?))
+            }
+        }
+    };
+}
+
+defmatcher!(StringOrRegex, String);
+impl Matcher<String> for StringOrRegex {
+    fn validate(&self) -> Result<(), String> {
+        self.value.validate()
+    }
+
+    fn matches(&self, input: &String) -> bool {
+        match &self.value {
+            LiteralOrRegexValue::Literal(lit) => input.contains(lit),
+            LiteralOrRegexValue::Regex(rg) => rg.is_match(&input.to_string()),
+            _ => false,
+        }
+    }
+}
+
+defmatcher!(Int32OrRegex, i32);
+impl Matcher<i32> for Int32OrRegex {
+    fn validate(&self) -> Result<(), String> {
+        self.value.validate()
+    }
+
+    fn matches(&self, input: &i32) -> bool {
         match &self.value {
             LiteralOrRegexValue::Literal(lit) => *lit == *input,
             LiteralOrRegexValue::Regex(rg) => rg.is_match(&input.to_string()),
@@ -73,24 +106,6 @@ impl<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> Matcher<T>
         }
     }
 }
-
-impl<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> Default for LiteralOrRegex<T, E> {
-    fn default() -> Self {
-        LiteralOrRegex::new("".to_string())
-    }
-}
-
-impl<'de, T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> Deserialize<'de> for LiteralOrRegex<T, E> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(LiteralOrRegex::new(String::deserialize(deserializer)?))
-    }
-}
-
-pub type StringOrRegex = LiteralOrRegex<String, <String as FromStr>::Err>;
-pub type Int32OrRegex = LiteralOrRegex<i32, <i32 as FromStr>::Err>;
 
 #[cfg(test)]
 mod tests {
