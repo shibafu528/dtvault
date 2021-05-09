@@ -29,7 +29,8 @@ impl<T: FromStr<Err = E> + ToString + Clone + Eq, E: Debug + Display> LiteralOrR
         }
 
         if value.starts_with("/") && value.ends_with("/") {
-            match Regex::new(&value) {
+            let pattern = &value[1..value.len() - 1];
+            match Regex::new(&pattern) {
                 Ok(re) => LiteralOrRegex {
                     raw_value: value,
                     value: LiteralOrRegexValue::Regex(re),
