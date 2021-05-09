@@ -112,7 +112,7 @@ impl FileSystem {
             return Err(CreateError::CantCreateDirectory);
         }
         if !video_dir.exists() {
-            if let Err(_) = tokio::fs::create_dir(&video_dir).await {
+            if let Err(_) = tokio::fs::create_dir_all(&video_dir).await {
                 return Err(CreateError::CantCreateDirectory);
             }
         }
