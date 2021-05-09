@@ -151,11 +151,11 @@ impl Default for Int64Range {
 
 impl Matcher<i64> for Int64Range {
     fn validate(&self) -> Result<(), String> {
-        todo!()
+        self.error.as_ref().map_or(Ok(()), |e| Err(e.clone()))
     }
 
     fn matches(&self, input: &i64) -> bool {
-        todo!()
+        self.min <= *input && *input <= self.max
     }
 }
 

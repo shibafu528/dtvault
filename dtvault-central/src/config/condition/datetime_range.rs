@@ -207,11 +207,11 @@ impl Default for DateTimeRange {
 
 impl Matcher<DateTime<Local>> for DateTimeRange {
     fn validate(&self) -> Result<(), String> {
-        todo!()
+        self.error.as_ref().map_or(Ok(()), |e| Err(e.clone()))
     }
 
     fn matches(&self, input: &DateTime<Local>) -> bool {
-        todo!()
+        self.min <= *input && *input <= self.max
     }
 }
 

@@ -57,11 +57,15 @@ impl Default for ChannelType {
 
 impl Matcher<ChannelTypeEnum> for ChannelType {
     fn validate(&self) -> Result<(), String> {
-        todo!()
+        if self.invalid_values.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("invalid value: {}", self.invalid_values.join(", ")))
+        }
     }
 
     fn matches(&self, input: &ChannelTypeEnum) -> bool {
-        todo!()
+        self.values.contains(input)
     }
 }
 
