@@ -160,8 +160,10 @@ impl Outlet {
 #[derive(Deserialize, Debug, Default)]
 pub struct StorageRule {
     condition: Condition,
+    #[serde(default)]
     pub storage_label: String,
     #[serde(with = "crate::serde::uuid")]
+    #[serde(default)]
     pub storage_id: Uuid,
 }
 
@@ -183,6 +185,7 @@ impl StorageRule {
 #[derive(Deserialize, Debug, Default)]
 pub struct PrefixRule {
     condition: Condition,
+    #[serde(default)]
     pub prefix: String,
 }
 
